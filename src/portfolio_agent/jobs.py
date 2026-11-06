@@ -111,6 +111,20 @@ class JobStore:
         return cursor.fetchone()
 
 
+def build_default_handlers(store):
+    """Return the {job_type: callable} registry for the proactive service.
+
+    Discovered at construction and passed to JobRunner; peers are NOT hardcoded into the
+    runner. 'collect' is the public, coalesced, holder-blind step; 'monitor_portfolio' is
+    the private step that re-authorizes the current owner at execution time.
+    """
+    from . import monitoring
+    return {
+        'collect': monitoring.collect_handler,
+        'monitor_portfolio': monitoring.monitor_portfolio_handler,
+    }
+
+
 class JobRunner:
     """Deterministic, test-invoked poller. Handlers are a registry discovered at construction.
 

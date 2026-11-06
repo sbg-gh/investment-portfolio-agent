@@ -542,6 +542,37 @@ class Store:
         last = datetime.fromisoformat(row[0])
         return (when - last).total_seconds() < cooldown_seconds
 
+    def read_monitoring_state(self, security_id: str, rule: str):
+        """Return the stored (state_key, observed_at) for a (security, rule), or None.
+
+        Carries only a deterministic state_key and an observation timestamp; no private
+        portfolio context. Used to keep unchanged conditions quiet.
+        """
+        row = self.db.execute(
+            "SELECT state_key,observed_at FROM monitoring_state WHERE security_id=? AND rule=?",
+            (security_id, rule)).fetchone()
+        return None if row is None else (row[0], row[1])
+
+    def record_monitoring_state(self, security_id: str, rule: str, state_key: str, observed_at):
+        """UPSERT the deterministic monitoring state for a (security, rule).
+
+        state_key is a short vocabulary term (e.g. 'fresh'/'stale'/'missing' or a bucketed
+        materiality marker); observed_at is an optional UTC ISO-8601 instant or None. No
+        symbols, quantities, holdings or sources are ever stored here.
+        """
+        if not isinstance(security_id, str) or not security_id.strip():
+            raise ValueError("Security id required")
+        if not isinstance(rule, str) or not rule.strip():
+            raise ValueError("Monitoring rule required")
+        if not isinstance(state_key, str) or not state_key.strip():
+            raise ValueError("Monitoring state key required")
+        with self.transaction():
+            self.db.execute(
+                "INSERT INTO monitoring_state(security_id,rule,state_key,observed_at) "
+                "VALUES (?,?,?,?) ON CONFLICT(security_id,rule) DO UPDATE SET "
+                "state_key=excluded.state_key,observed_at=excluded.observed_at",
+                (security_id, rule, state_key, observed_at))
+
     def deliver_pending(self, notifier, now) -> int:
         """Deliver every 'pending' outbox row (ordered by rowid) and mark it 'sent'.
 
