@@ -62,6 +62,18 @@ class PortfolioService:
     def receipts(self, context, portfolio_id):
         return self._run(context,'receipts',lambda user:self._store.receipts(user,portfolio_id))
 
+    def record_transaction(self, context, portfolio_id, security_id, side, quantity, *,
+                           source, idempotency_key, occurred_at):
+        return self._run(context,'record_transaction',lambda user:self._store.record_transaction(
+            user,portfolio_id,security_id,side,quantity,
+            source=source,idempotency_key=idempotency_key,occurred_at=occurred_at))
+
+    def transactions(self, context, portfolio_id):
+        return self._run(context,'transactions',lambda user:self._store.transactions(user,portfolio_id))
+
+    def reconcile(self, context, portfolio_id):
+        return self._run(context,'reconcile',lambda user:self._store.reconcile_portfolio(user,portfolio_id))
+
     def value_portfolio(self, context, portfolio_id, *, as_of, source, policy=None):
         from .valuation import value_portfolio
         return self._run(context,'value_portfolio',lambda user:value_portfolio(

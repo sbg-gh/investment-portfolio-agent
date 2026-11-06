@@ -99,8 +99,29 @@ CREATE TABLE security_aliases(
 CREATE INDEX alias_lookup ON security_aliases(symbol,effective_from);
 CREATE INDEX receipt_owner ON import_receipts(portfolio_id);
 """
-MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA), (4, M2_IMPORT_SCHEMA))
-SCHEMA_VERSION = 4
+M2_COMPLETION_SCHEMA = """
+CREATE TABLE transactions(
+ id TEXT PRIMARY KEY, portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
+ security_id TEXT NOT NULL REFERENCES securities(id),
+ side TEXT NOT NULL CHECK(side IN ('buy','sell')), quantity TEXT NOT NULL,
+ source TEXT NOT NULL, idempotency_key TEXT NOT NULL, occurred_at TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(portfolio_id,idempotency_key));
+CREATE TABLE monitoring_admissions(
+ id TEXT PRIMARY KEY, security_id TEXT NOT NULL REFERENCES securities(id),
+ state TEXT NOT NULL CHECK(state IN ('admitted','queued')), reason TEXT NOT NULL,
+ operator TEXT NOT NULL, position INTEGER, proposed_at TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(security_id));
+CREATE TABLE baseline_coverage(
+ security_id TEXT PRIMARY KEY REFERENCES securities(id),
+ covered INTEGER NOT NULL DEFAULT 1 CHECK(covered IN (0,1)), since TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX transaction_lookup ON transactions(portfolio_id,security_id);
+CREATE INDEX admission_queue ON monitoring_admissions(state,position);
+"""
+MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA),
+              (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA))
+SCHEMA_VERSION = 5
 
 def statements(script):
     pending = ''

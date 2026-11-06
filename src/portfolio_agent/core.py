@@ -221,6 +221,63 @@ class Store:
         return self.db.execute("SELECT security_id,quantity FROM holdings WHERE portfolio_id=? ORDER BY security_id",
                                (portfolio_id,)).fetchall()
 
+    def record_transaction(self, user_id: str, portfolio_id: str, security_id: str, side: str,
+                           quantity: str, *, source: str, idempotency_key: str, occurred_at) -> str:
+        """Append one signed buy/sell event. Idempotent on (portfolio_id, idempotency_key).
+
+        Decimal quantities only; never auto-mutates holdings. Reconciliation is a separate read.
+        """
+        from .valuation import utc
+        self._authorize(user_id, portfolio_id)
+        if side not in {"buy", "sell"}:
+            raise ValueError("Transaction side must be buy or sell")
+        qty = positive(quantity)
+        if not source.strip() or not idempotency_key.strip():
+            raise ValueError("Transaction source and idempotency key required")
+        when = utc(occurred_at).isoformat()
+        existing = self.db.execute(
+            "SELECT id FROM transactions WHERE portfolio_id=? AND idempotency_key=?",
+            (portfolio_id, idempotency_key)).fetchone()
+        if existing is not None:
+            return existing[0]
+        transaction_id = str(uuid4())
+        with self.transaction():
+            self.db.execute(
+                "INSERT INTO transactions(id,portfolio_id,security_id,side,quantity,source,idempotency_key,occurred_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (transaction_id, portfolio_id, security_id, side, str(qty), source, idempotency_key, when))
+        return transaction_id
+
+    def transactions(self, user_id: str, portfolio_id: str):
+        self._authorize(user_id, portfolio_id)
+        return self.db.execute(
+            "SELECT id,security_id,side,quantity,source,occurred_at FROM transactions "
+            "WHERE portfolio_id=? ORDER BY rowid", (portfolio_id,)).fetchall()
+
+    def reconcile_portfolio(self, user_id: str, portfolio_id: str):
+        """Compare the signed ledger sum per security to the holdings snapshot quantity.
+
+        Returns (security_id, ledger_sum_text, holding_qty_text, reconciled_bool) rows;
+        flags divergence without ever coercing the snapshot.
+        """
+        self._authorize(user_id, portfolio_id)
+        ledger: dict[str, Decimal] = {}
+        for security_id, side, quantity in self.db.execute(
+                "SELECT security_id,side,quantity FROM transactions WHERE portfolio_id=? ORDER BY rowid",
+                (portfolio_id,)).fetchall():
+            signed = Decimal(quantity) if side == "buy" else -Decimal(quantity)
+            ledger[security_id] = ledger.get(security_id, Decimal(0)) + signed
+        snapshot = {security_id: Decimal(quantity) for security_id, quantity in self.db.execute(
+            "SELECT security_id,quantity FROM holdings WHERE portfolio_id=?", (portfolio_id,)).fetchall()}
+        rows = []
+        for security_id in sorted(set(ledger) | set(snapshot)):
+            ledger_sum = ledger.get(security_id, Decimal(0))
+            holding_qty = snapshot.get(security_id)
+            reconciled = holding_qty is not None and ledger_sum == holding_qty
+            rows.append((security_id, str(ledger_sum),
+                         None if holding_qty is None else str(holding_qty), reconciled))
+        return rows
+
     def set_research(self, security_id: str):
         # 400 is a planning target, never a hard master-list or holdings limit.
         with self.transaction():
