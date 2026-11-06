@@ -1,6 +1,6 @@
 # Investment Portfolio Management Agent
 
-Repository initialization package for a hybrid conversational and proactive portfolio assistant. Local-first, vendor-neutral, designed for an Apple Silicon Mac mini and portable to Linux. Initial scope: private multi-user portfolios of US stocks, ETFs and mutual funds; read-only analysis and explicit paper simulation.
+Local-first, vendor-neutral foundation for a hybrid conversational and proactive portfolio assistant. Intended for an Apple Silicon Mac mini and portable to Linux. Scope: private multi-user portfolios of US stocks, ETFs and mutual funds; read-only analysis and explicit paper simulation.
 
 ## Start offline (Python 3.11+)
 
@@ -9,6 +9,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m portfolio_agent.cli demo
+PYTHONPATH=src python -m portfolio_agent.cli eval
+PYTHONPATH=src python -m portfolio_agent.cli eval-valuation
 ```
 
 Optional installation (build dependencies may require network):
@@ -16,34 +18,43 @@ Optional installation (build dependencies may require network):
 ```sh
 python -m pip install -e .
 portfolio-agent demo
+portfolio-agent eval
+portfolio-agent eval-valuation
 ```
 
-The demo uses a synthetic instrument and a fresh in-memory database. No API keys, live market data, model download, brokerage access or external services are required. For persistence, pass a writable SQLite path to `Store(path)` after creating its parent directory. `.env.example` documents future adapter configuration; it is not loaded by M0.
+The commands use synthetic data and fresh in-memory databases. No API keys, market-data subscriptions, model downloads or brokerage access are required. The eval command exits nonzero on any failed case. `.env.example` is a future adapter contract, not active configuration.
 
-## Implemented in M0
+## Implemented
 
-- SQLite schema and scoped portfolio reads/imports with positive decimal quantities.
-- Validated instrument registration, explicit research membership, global 75-slot enhanced monitoring enforcement.
-- Private episodic/semantic/procedural memory and separate trusted public-fact ingestion.
-- Read-only default and explicit buy-side paper-intent records that never change real holdings.
-- Provider protocols, offline CLI demonstration, regression tests and macOS/Linux CI.
+- Versioned SQLite schema, scoped portfolio imports, positive decimal quantities, validated instrument registration and a 75-slot global monitoring cap; research target 400 remains soft.
+- Local bearer credential provisioning with hashed storage, revocation and expiry; signed five-minute contexts bind identity to the authenticated credential.
+- Application services that derive the owner from context; separate operator-gated public ingestion and membership management.
+- Explicit private/public memory scopes with database constraints. Missing private owners are rejected. Legacy ownerless memories are quarantined on migration, not published.
+- Private execution traces containing operation, outcome, policy version and timing, without portfolio IDs or request payloads. Successful changes and traces commit atomically.
+- Consistent backup/restore to a new file, integrity/schema checks and credential revocation on restore.
+- Deterministic safety evaluation fixtures and CI gates alongside regression tests.
+- Read-only default; explicit paper buy-intent records do not change actual holdings.
 
-## Planned, not implemented
+- Fixture-backed stock/ETF and dated fund-NAV valuation with explicit stale/missing states, source/cutoff provenance and private saved snapshots.
 
-Authenticated chat/API, background scheduler, real validation/data adapters, valuation and performance accounting, model runtime integration, semantic retrieval, notification delivery, full paper ledger, experience extraction and evaluated procedural promotion. M0 does not demonstrate behavioral improvement. See milestone acceptance criteria before expanding exposure.
+## Boundaries
 
-This foundation trusts the calling process. SQLite and public ingestion methods are operator interfaces, not user endpoints. Do not deploy it as a network multi-user service until M1 supplies authentication, authorized repositories and isolation coverage.
+M1 implements local identity, persistence and service boundaries. It does not include an HTTP listener, interactive login, UI, prompt/cache authorization adapters or production deployment. Store, credential provisioning and backup functions are trusted operator internals. They are not endpoints. Python code and anyone with database/process access remain trusted; this is not an in-process security sandbox.
 
-## Architecture map
+Real providers, financial accounting, proactive jobs, local inference, conversational orchestration, learned-procedure promotion and full paper ledgers remain planned. The evaluation baseline measures deterministic safety, not investment performance or behavioral improvement.
 
-- [Architecture](docs/ARCHITECTURE.md): components, flows and candidate specialist roles.
-- [Decision register](docs/DECISIONS.md): confirmed requirements and explicit assumptions.
-- [Domain specification](docs/specs/DOMAIN.md): identities, holdings and universe rules.
-- [Service contracts](docs/specs/SERVICES.md): chat, jobs, providers and paper simulation.
-- [Memory and evaluation](docs/specs/MEMORY.md): scoped experience learning and experiments.
-- [Security and operations](docs/OPERATIONS.md): trust boundaries, local deployment and recovery.
-- [Milestones](docs/MILESTONES.md): ordered implementation and acceptance gates.
-- [Handoff](docs/HANDOFF.md): first development task.
-- [Verification](VERIFICATION.md): package validation results.
+## Documentation
 
-No project license has been selected. Choose a license before public distribution. No third-party source code or model weights are bundled.
+- [Architecture](docs/ARCHITECTURE.md) and [decisions](docs/DECISIONS.md)
+- [M1 implementation and local usage](docs/M1.md)
+- [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
+- [Read-only valuation and example](docs/VALUATION.md)
+- [Testing and evaluation](docs/TESTING.md)
+- [Operations](docs/OPERATIONS.md), [milestones](docs/MILESTONES.md), [handoff](docs/HANDOFF.md)
+- [Verification](VERIFICATION.md)
+
+No project license has been selected. No third-party source or model weights are bundled.
+
+## First watchlist
+
+[AI Conviction](docs/WATCHLIST.md) contains the 20 user-selected symbols in screenshot order. The seed awaits instrument validation and owner-scoped runtime import.

@@ -28,4 +28,8 @@ Market observations carry security ID, value, currency, observation time, fetch 
 
 ## M0 schema mapping
 
-`users`, `portfolios`, `holdings`: private ownership path. `securities`, `research`, `monitoring`: shared metadata. `memories`: nullable user scope; NULL is trusted public fact only. `paper_orders`: private recorded buy intent via portfolio ownership. See core.py for executable schema. Direct SQL and operator registration are trusted internal operations; future network interfaces must not expose the Store object wholesale.
+`users`, `portfolios`, `holdings`: private ownership path. `securities`, `research`, `monitoring`: shared metadata. `memories`: explicit scope and owner constraints; public facts require public scope and NULL owner. Legacy ambiguous ownerless memories move to operator-only `memory_quarantine`. `paper_orders`: private recorded buy intent via portfolio ownership. See core.py for executable schema. Direct SQL and operator registration are trusted internal operations; future network interfaces must not expose the Store object wholesale.
+
+M1 adds `credentials` and owner-scoped `execution_traces`; see ../M1.md for migration and access contracts.
+
+M2a schema v3 adds shared market_observations and private valuation_snapshots. Snapshots embed current held quantities, market cutoff, source and evidence IDs. They are not historical position ledgers. Effective-dated aliases and import/removal provenance remain deferred to the next M2 slice.

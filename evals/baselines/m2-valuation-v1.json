@@ -1,0 +1,93 @@
+{
+  "suite": "m2-valuation-baseline-v1",
+  "valuation_version": "valuation-v1",
+  "dataset_sha256": "b6d931d865e592727596981e3202e6fa01e36659789df591de6c9cb1d9d4ca09",
+  "total": 7,
+  "passed": 7,
+  "results": [
+    {
+      "id": "value-stock-etf",
+      "expected": {
+        "status": "complete",
+        "total": "62.5625"
+      },
+      "observed": {
+        "status": "complete",
+        "total": "62.5625"
+      },
+      "passed": true
+    },
+    {
+      "id": "value-nav",
+      "expected": {
+        "status": "complete",
+        "total": "16.665"
+      },
+      "observed": {
+        "status": "complete",
+        "total": "16.665"
+      },
+      "passed": true
+    },
+    {
+      "id": "value-stale",
+      "expected": {
+        "status": "stale",
+        "total": null
+      },
+      "observed": {
+        "status": "stale",
+        "total": null
+      },
+      "passed": true
+    },
+    {
+      "id": "value-missing",
+      "expected": {
+        "status": "incomplete",
+        "total": null
+      },
+      "observed": {
+        "status": "incomplete",
+        "total": null
+      },
+      "passed": true
+    },
+    {
+      "id": "value-late-fetch",
+      "expected": {
+        "status": "incomplete",
+        "total": null
+      },
+      "observed": {
+        "status": "incomplete",
+        "total": null
+      },
+      "passed": true
+    },
+    {
+      "id": "value-zero",
+      "expected": {
+        "status": "complete",
+        "total": "0"
+      },
+      "observed": {
+        "status": "complete",
+        "total": "0"
+      },
+      "passed": true
+    },
+    {
+      "id": "value-empty",
+      "expected": {
+        "status": "complete",
+        "total": "0"
+      },
+      "observed": {
+        "status": "complete",
+        "total": "0"
+      },
+      "passed": true
+    }
+  ]
+}

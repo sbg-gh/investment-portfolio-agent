@@ -1,0 +1,153 @@
+[
+  {
+    "id": "value-stock-etf",
+    "holdings": [
+      [
+        "STOCK",
+        "stock",
+        "1.25"
+      ],
+      [
+        "ETF",
+        "etf",
+        "2.5"
+      ]
+    ],
+    "observations": [
+      [
+        "STOCK",
+        "10.01",
+        "price",
+        0,
+        0
+      ],
+      [
+        "ETF",
+        "20.02",
+        "price",
+        0,
+        0
+      ]
+    ],
+    "expected": {
+      "status": "complete",
+      "total": "62.5625"
+    }
+  },
+  {
+    "id": "value-nav",
+    "holdings": [
+      [
+        "FUND",
+        "mutual_fund",
+        "3"
+      ]
+    ],
+    "observations": [
+      [
+        "FUND",
+        "5.555",
+        "nav",
+        86400,
+        0
+      ]
+    ],
+    "expected": {
+      "status": "complete",
+      "total": "16.665"
+    }
+  },
+  {
+    "id": "value-stale",
+    "holdings": [
+      [
+        "STOCK",
+        "stock",
+        "2"
+      ]
+    ],
+    "observations": [
+      [
+        "STOCK",
+        "10",
+        "price",
+        172800,
+        0
+      ]
+    ],
+    "expected": {
+      "status": "stale",
+      "total": null
+    }
+  },
+  {
+    "id": "value-missing",
+    "holdings": [
+      [
+        "ETF",
+        "etf",
+        "2"
+      ]
+    ],
+    "observations": [],
+    "expected": {
+      "status": "incomplete",
+      "total": null
+    }
+  },
+  {
+    "id": "value-late-fetch",
+    "holdings": [
+      [
+        "FUND",
+        "mutual_fund",
+        "2"
+      ]
+    ],
+    "observations": [
+      [
+        "FUND",
+        "10",
+        "nav",
+        86400,
+        -1
+      ]
+    ],
+    "expected": {
+      "status": "incomplete",
+      "total": null
+    }
+  },
+  {
+    "id": "value-zero",
+    "holdings": [
+      [
+        "STOCK",
+        "stock",
+        "2"
+      ]
+    ],
+    "observations": [
+      [
+        "STOCK",
+        "0",
+        "price",
+        0,
+        0
+      ]
+    ],
+    "expected": {
+      "status": "complete",
+      "total": "0"
+    }
+  },
+  {
+    "id": "value-empty",
+    "holdings": [],
+    "observations": [],
+    "expected": {
+      "status": "complete",
+      "total": "0"
+    }
+  }
+]

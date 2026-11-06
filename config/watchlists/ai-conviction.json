@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "id": "ai-conviction",
+  "name": "AI Conviction",
+  "source": "User-provided watchlist screenshot",
+  "status": "pending_instrument_validation",
+  "purpose": "Initial watchlist seed; not portfolio holdings or active monitoring membership",
+  "owner_assignment": "required_before_runtime_import",
+  "entries": [
+    {
+      "symbol": "MU",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "AVGO",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "SMCI",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "TSM",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "MRVL",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "NVDA",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "AMD",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "OKLO",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "SMR",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "LEU",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "SNOW",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "CRWV",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "ANET",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "ORCL",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "VRT",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "CCJ",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "GEV",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "BE",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "UEC",
+      "validation_status": "pending",
+      "security_id": null
+    },
+    {
+      "symbol": "SKHY",
+      "validation_status": "pending",
+      "security_id": null
+    }
+  ]
+}

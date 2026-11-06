@@ -29,3 +29,11 @@ Source: user requirements and visible user turns in “Propose Agent Architectur
 - M0 paper records are positive buy intents with reference prices, not simulated fills, balances or investment performance.
 
 Unresolved: data-provider licensing and coverage, model/quantization choice, retention duration, alert thresholds, portfolio accounting method, authentication mechanism and notification channel. Resolve each before its owning milestone is accepted.
+
+## M1 implementation decisions (2026-11-06)
+
+Local bearer credentials are random, hashed in storage, revocable and expiring. Signed short-lived contexts carry authenticated identity into application services. HTTP transport is deferred. Public/private memory scope is explicit; all ambiguous legacy NULL-owner records are quarantined. Schema upgrades are atomic and versioned. Restore revokes credentials. Metadata-only execution traces and deterministic safety evals start in M1; learned-procedure evaluation remains M5. New behavior follows red/green/refactor test-driven development. These are implementation choices, not additional claims about the unavailable prior conversation.
+
+## M2a valuation choices (2026-11-06)
+
+Value current holdings against an explicit source and market-data cutoff; do not imply historical portfolio reconstruction. Observed and fetched timestamps both gate eligibility. Stock/ETF prices and dated fund NAV use separate bases. Default elapsed-age windows are 24 and 72 hours, explicitly stored and configurable; market-calendar semantics are deferred. Missing/stale data prevents a complete total; an indicative priced subtotal remains labelled. Store private snapshots with quantities, observation evidence IDs and holdings hashes. All calculations remain deterministic Decimal operations; no financial performance or learning claim follows from fixture success.

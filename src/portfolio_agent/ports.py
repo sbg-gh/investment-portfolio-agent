@@ -12,6 +12,7 @@ class Observation:
     source: str
     basis: str  # price or nav; mutual-fund NAV is not an intraday quote
     currency: str = "USD"
+    fetched_at: datetime | None = None  # required by observation ingestion
 
 class MarketData(Protocol):
     def latest(self, security_id: str) -> Observation: ...

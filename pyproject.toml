@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "investment-portfolio-agent"
-version = "0.1.0"
+version = "0.3.0"
 description = "Local-first, scoped portfolio agent foundation"
 requires-python = ">=3.11"
 dependencies = []
@@ -14,3 +14,6 @@ portfolio-agent = "portfolio_agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+portfolio_agent = ["eval_cases.json", "valuation_cases.json"]

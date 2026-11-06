@@ -1,6 +1,6 @@
 # Application and adapter contracts
 
-## M0 callable contract
+## Internal persistence contract (M0 compatibility)
 
 `Store.import_holding(user_id, portfolio_id, symbol, quantity, validator)` authorizes first, resolves through a validator, and atomically registers/upserts. FixtureValidator only resolves supplied synthetic records. A real validator must reject ambiguity, stale identity evidence and unsupported instrument types.
 
@@ -25,3 +25,11 @@ Read-only permits analysis, imports, memory and alerts but no order records. Pap
 ## Error behavior
 
 Denied access returns a generic unavailable result. Validation errors require correction/reconciliation. Provider failures preserve last observations as stale, never fabricate replacements. Capacity failure queues a proposed enhancement in M2 while baseline holding processing continues. Model failure falls back to deterministic facts. No retry may create duplicate imports, paper fills or notifications.
+
+## M1 application boundary
+
+Application callers use PortfolioService with AuthContext from Authenticator.authenticate(token). No service method accepts a user-selected owner ID. OperatorService checks operator role for public ingestion and global membership. Store methods remain trusted internals. Successful service mutations and outcome traces commit atomically; failed actions roll back before a metadata-only failure trace is stored. See ../M1.md for local composition and credentials.
+
+## M2a valuation boundary
+
+OperatorService.ingest_observation accepts validated dated public observations. PortfolioService.value_portfolio and valuation_snapshot enforce current ownership and captured snapshot ownership. Source is explicit; stale/missing data never produces a complete total. See ../VALUATION.md for signatures, precision, freshness and snapshot contracts.

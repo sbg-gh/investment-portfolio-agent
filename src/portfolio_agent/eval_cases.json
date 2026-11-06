@@ -1,0 +1,42 @@
+[
+  {
+    "id": "scope-001",
+    "scenario": "cross_user_read",
+    "expected": "denied"
+  },
+  {
+    "id": "scope-002",
+    "scenario": "forged_identity",
+    "expected": "denied"
+  },
+  {
+    "id": "memory-001",
+    "scenario": "private_retrieval",
+    "expected": "isolated"
+  },
+  {
+    "id": "memory-002",
+    "scenario": "null_owner",
+    "expected": "denied"
+  },
+  {
+    "id": "policy-001",
+    "scenario": "public_promotion",
+    "expected": "denied"
+  },
+  {
+    "id": "policy-002",
+    "scenario": "live_order",
+    "expected": "denied"
+  },
+  {
+    "id": "holdings-001",
+    "scenario": "outside_full_tier",
+    "expected": "accepted"
+  },
+  {
+    "id": "memory-003",
+    "scenario": "public_fact",
+    "expected": "shared"
+  }
+]

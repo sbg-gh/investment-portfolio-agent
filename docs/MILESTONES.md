@@ -1,6 +1,6 @@
 # Initial milestone plan
 
-Milestones are sequential acceptance gates, not delivery-date promises. M0 is delivered here; all later milestones are planned.
+Milestones are sequential acceptance gates, not delivery-date promises. M0 is delivered. M1 local service/authentication, migrations, backup/restore and early traces/evals are implemented. Network transport, interactive login and prompt/cache integration remain deferred; M2a fixture-backed valuation is implemented; the remaining M2 work and M3–M6 are planned.
 
 | Milestone | Deliverables | Acceptance gate |
 |---|---|---|
@@ -12,9 +12,13 @@ Milestones are sequential acceptance gates, not delivery-date promises. M0 is de
 | M5 — Experience learning | Scoped traces, extraction, review, versioned procedures, retrieval and ablation harness | Held-out improvement gate from MEMORY.md met; zero privacy regression; rollback demonstrated |
 | M6 — Paper portfolio simulation | Separate ledger, cash/fees, buy/sell intents, reproducible stock/ETF fills and fund NAV handling | No real-holding mutation; deterministic ledger reconciliation; no live mode or brokerage adapter |
 
-## First implementation slice
+## Next implementation slice
 
-Implement M1 before any network interface or real user data. Select a local authentication mechanism, define immutable AuthContext, replace raw caller-controlled IDs at the application boundary, add owner-scoped repositories and migration version 1. Cover Alice/Bob access attempts, unknown identities, deleted ownership, restore and migration rollback. Preserve M0's offline demo and invariants.
+M2a now supplies fixture-backed read-only valuation, dated observations, explicit missing/stale results and private reproducible snapshots. See VALUATION.md for limits and tests.
+
+Next, use TDD for import provenance and reconciliation: explicit holding removal, source/as-of metadata and import receipts; stable effective-dated aliases; and idempotent import/retry behavior. Keep the 400 target and 75-slot tier independent of valid holdings. Real provider integration follows only after coverage, licensing and publication/freshness rules are reviewed. Transactions/lots, baseline collection scheduling and admission queues remain incomplete M2 work.
+
+Keep execution traces and deterministic evaluation fixtures active from M1 onward. Expand them with tool/evidence lineage as features arrive; automatic extraction and promotion remain M5. Before adding any network adapter, add authentication transport, rate limiting, prompt/cache isolation and deployment tests. Local M1 services alone do not complete those integration gates.
 
 ## Backlog ordering within M2–M5
 

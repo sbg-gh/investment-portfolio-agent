@@ -1,0 +1,57 @@
+{
+  "suite": "m1-safety-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "1d688c7bacc2b784a3927fbe8210935f0ed6fa3dd85280c496659d63868a4362",
+  "total": 8,
+  "passed": 8,
+  "results": [
+    {
+      "id": "scope-001",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "scope-002",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "memory-001",
+      "expected": "isolated",
+      "observed": "isolated",
+      "passed": true
+    },
+    {
+      "id": "memory-002",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "policy-001",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "policy-002",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "holdings-001",
+      "expected": "accepted",
+      "observed": "accepted",
+      "passed": true
+    },
+    {
+      "id": "memory-003",
+      "expected": "shared",
+      "observed": "shared",
+      "passed": true
+    }
+  ]
+}

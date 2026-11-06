@@ -2,11 +2,11 @@
 
 Start by reading AGENTS.md and the decision register. Run the offline tests and demo. The package is a new repository root, not a patch to the ChatGPT project mirror.
 
-Suggested initial development request:
+Suggested next development request:
 
-> Implement M1 from docs/MILESTONES.md. Preserve all confirmed decisions. Add trusted authentication context and scoped application services, versioned migrations and backup/restore checks. Keep the offline demo runnable and do not add live trading, cloud dependencies or real market-data integrations. Test cross-user denial before opening any network interface. Explain implementation choices and remaining limitations.
+> Implement M2 import provenance and reconciliation from docs/MILESTONES.md using TDD. Write failing tests and evaluation cases for explicit holding removal, source/as-of import receipts, effective-dated aliases and idempotent retries. Preserve M1 boundaries and M2a valuation/evidence semantics. Keep real providers, live trading and model integration out of this slice.
 
-Initialize version control after extracting the ZIP into a new directory:
+For a fresh extraction only, initialize version control:
 
 ```sh
 git init

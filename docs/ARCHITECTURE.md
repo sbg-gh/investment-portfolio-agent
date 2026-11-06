@@ -48,4 +48,6 @@ Learning: trace → outcome/feedback → scoped candidate experience → evidenc
 
 Start with Python, SQLite on local disk and a single bounded local-model adapter. Use deterministic scheduled rules for routine monitoring; invoke the model on meaningful changes or user questions. Cache public observations with source and freshness metadata. Bound prompts, output tokens, queue depth and retries. Measure latency, memory pressure and quality on the actual Mac mini before selecting model size. Portable adapters may use a local HTTP runtime or native inference; neither is required for the offline foundation.
 
-M0 contains core repositories, fixtures, protocols and CLI only. Durable jobs, model orchestration, traces and outbox are intentionally milestone work, not simulated by placeholders claiming success.
+M1 includes local authenticated application services, migration-backed repositories, private metadata-only traces, backup/restore, fixtures and deterministic evals. Durable jobs, network/chat adapters, model orchestration and outbox remain planned. See M1.md for exact boundaries.
+
+M2a adds operator-gated public observations and owner-scoped valuation snapshots. Deterministic valuation runs inside authorized services; the model is not involved. See VALUATION.md.

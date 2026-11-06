@@ -13,6 +13,11 @@ Build a vendor-neutral, local-first Investment Portfolio Management Agent for pe
 - Keep runtime local and lightweight; bound inference concurrency and context. Avoid required cloud services and model retraining.
 
 ## Implementation practice
-M0 is an offline trusted-process foundation, not an authenticated multi-user server. Follow milestone acceptance gates before exposing interfaces. Keep fixtures obviously synthetic. Use Decimal for quantities and money; UTC timestamps with provenance in new observation adapters. Do not log private context by default. Schema changes after M0 need versioned migrations and backup/restore tests.
+M1 supplies local authenticated application services, not a network multi-user server. Store and credential provisioning remain trusted internals. Follow milestone acceptance gates before exposing interfaces. Keep fixtures obviously synthetic. Use Decimal for quantities and money; UTC timestamps with provenance in new observation adapters. Do not log private context by default. Schema changes after M0 need versioned migrations and backup/restore tests.
 
 Run `PYTHONPATH=src python -m unittest discover -s tests -v` and `PYTHONPATH=src python -m portfolio_agent.cli demo`. Add meaningful isolation and failure-path tests for new features. Update contracts and decisions alongside code. Do not claim experience learning from storage or retrieval alone: policy changes need held-out evaluation and rollback.
+
+## Test-driven development
+For every behavior change, write a meaningful failing test before implementation, then make it pass and refactor. Include negative authorization, malformed scope, migration rollback and recovery tests where relevant. Run the deterministic evaluation gate (`PYTHONPATH=src python -m portfolio_agent.cli eval`) alongside the unit tests and demo. Keep safety fixtures distinct from held-out learning evaluation and never claim adaptation from passing regression checks. See docs/TESTING.md.
+
+For valuation changes, also run `PYTHONPATH=src python -m portfolio_agent.cli eval-valuation`. Preserve current-holdings versus historical-market-cutoff semantics, dated NAV, explicit stale/missing values and snapshot isolation. See docs/VALUATION.md.

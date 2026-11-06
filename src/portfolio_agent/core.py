@@ -1,7 +1,8 @@
 """Deterministic domain services. Trusted in-process caller supplies user identity.
 
-This is NOT an authentication boundary; do not expose directly to a network.
+Internal persistence API, NOT an authentication boundary. Expose application services only.
 """
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import sqlite3
@@ -48,36 +49,31 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=5000")
-        self.db.executescript("""
-        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY);
-        CREATE TABLE IF NOT EXISTS portfolios(
-          id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), name TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS securities(
-          id TEXT PRIMARY KEY, symbol TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
-          country TEXT NOT NULL, source TEXT NOT NULL,
-          validated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS holdings(
-          portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
-          security_id TEXT NOT NULL REFERENCES securities(id), quantity TEXT NOT NULL,
-          PRIMARY KEY(portfolio_id,security_id));
-        CREATE TABLE IF NOT EXISTS research(
-          security_id TEXT PRIMARY KEY REFERENCES securities(id));
-        CREATE TABLE IF NOT EXISTS monitoring(
-          security_id TEXT PRIMARY KEY REFERENCES securities(id));
-        CREATE TRIGGER IF NOT EXISTS monitoring_cap BEFORE INSERT ON monitoring
-        WHEN (SELECT COUNT(*) FROM monitoring)>=75
-          AND NOT EXISTS(SELECT 1 FROM monitoring WHERE security_id=NEW.security_id)
-        BEGIN SELECT RAISE(ABORT,'Enhanced monitoring capacity reached'); END;
-        CREATE TABLE IF NOT EXISTS memories(
-          id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id),
-          kind TEXT NOT NULL, body TEXT NOT NULL, source TEXT NOT NULL,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS paper_orders(
-          id TEXT PRIMARY KEY, portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
-          security_id TEXT NOT NULL REFERENCES securities(id), quantity TEXT NOT NULL,
-          reference_price TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'recorded',
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-        """)
+        try:
+            from .migrations import migrate
+            migrate(self.db)
+        except BaseException:
+            self.db.close()
+            raise
+
+    @contextmanager
+    def transaction(self):
+        nested = self.db.in_transaction
+        savepoint = 'sp_' + uuid4().hex
+        self.db.execute(f'SAVEPOINT {savepoint}' if nested else 'BEGIN IMMEDIATE')
+        try:
+            yield
+            if nested:
+                self.db.execute(f'RELEASE SAVEPOINT {savepoint}')
+            else:
+                self.db.commit()
+        except BaseException:
+            if nested:
+                self.db.execute(f'ROLLBACK TO SAVEPOINT {savepoint}')
+                self.db.execute(f'RELEASE SAVEPOINT {savepoint}')
+            else:
+                self.db.rollback()
+            raise
 
     def close(self):
         self.db.close()
@@ -85,12 +81,12 @@ class Store:
     def create_user(self, user_id: str):
         if not user_id.strip():
             raise ValueError("Empty user identity")
-        with self.db:
+        with self.transaction():
             self.db.execute("INSERT INTO users VALUES (?)", (user_id,))
 
     def create_portfolio(self, user_id: str, name: str) -> str:
         portfolio_id = str(uuid4())
-        with self.db:
+        with self.transaction():
             self.db.execute("INSERT INTO portfolios VALUES (?,?,?)", (portfolio_id,user_id,name))
         return portfolio_id
 
@@ -119,7 +115,7 @@ class Store:
         self._authorize(user_id,portfolio_id)
         qty = positive(quantity)
         security = validator.resolve(symbol)
-        with self.db:
+        with self.transaction():
             self.register(security)
             self.db.execute("INSERT INTO holdings VALUES (?,?,?) ON CONFLICT(portfolio_id,security_id) "
                             "DO UPDATE SET quantity=excluded.quantity",(portfolio_id,security.security_id,str(qty)))
@@ -132,33 +128,37 @@ class Store:
 
     def set_research(self, security_id: str):
         # 400 is a planning target, never a hard master-list or holdings limit.
-        with self.db:
+        with self.transaction():
             self.db.execute("INSERT OR IGNORE INTO research VALUES (?)",(security_id,))
 
     def enable_monitoring(self, security_id: str):
         # Operator-only shared service: capacity counts distinct instruments globally.
-        with self.db:
+        with self.transaction():
             self.db.execute("INSERT OR IGNORE INTO monitoring VALUES (?)",(security_id,))
 
     def add_private_memory(self, user_id: str, kind: str, body: str, source: str):
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise PermissionError("Private memory requires a registered owner")
+        if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise PermissionError("Private memory requires a registered owner")
         if kind not in {"episodic","semantic","procedural"} or not body or not source:
             raise ValueError("Memory kind, content and provenance required")
-        with self.db:
-            self.db.execute("INSERT INTO memories(id,user_id,kind,body,source) VALUES (?,?,?,?,?)",
+        with self.transaction():
+            self.db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) VALUES (?,?,'private',?,?,?)",
                             (str(uuid4()),user_id,kind,body,source))
 
     def ingest_public_fact(self, body: str, source: str):
         """Trusted ingestion ONLY: must be independent public data, never user extraction."""
         if not body or not source:
             raise ValueError("Content and public provenance required")
-        with self.db:
-            self.db.execute("INSERT INTO memories(id,user_id,kind,body,source) VALUES (?,NULL,'semantic',?,?)",
+        with self.transaction():
+            self.db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) VALUES (?,NULL,'public','semantic',?,?)",
                             (str(uuid4()),body,source))
 
     def retrieve_memory(self, user_id: str):
         if not self.db.execute("SELECT 1 FROM users WHERE id=?",(user_id,)).fetchone():
             raise PermissionError("Unknown user")
-        return self.db.execute("SELECT kind,body,source FROM memories WHERE user_id=? OR user_id IS NULL ORDER BY rowid",
+        return self.db.execute("SELECT kind,body,source FROM memories WHERE (scope='private' AND user_id=?) OR scope='public' ORDER BY rowid",
                                (user_id,)).fetchall()
 
     def record_paper_order(self, user_id: str, portfolio_id: str, security_id: str,
@@ -168,7 +168,7 @@ class Store:
             raise PermissionError("Only explicit paper mode permits simulated order records")
         qty, price = positive(quantity), positive(reference_price)
         order_id = str(uuid4())
-        with self.db:
+        with self.transaction():
             self.db.execute("INSERT INTO paper_orders(id,portfolio_id,security_id,quantity,reference_price) "
                             "VALUES (?,?,?,?,?)",(order_id,portfolio_id,security_id,str(qty),str(price)))
         return order_id
