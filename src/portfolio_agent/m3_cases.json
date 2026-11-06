@@ -1,0 +1,32 @@
+[
+  {
+    "id": "m3-001",
+    "scenario": "crash_retry_no_duplicate",
+    "expected": "single_effect"
+  },
+  {
+    "id": "m3-002",
+    "scenario": "no_cross_user_notification",
+    "expected": "isolated"
+  },
+  {
+    "id": "m3-003",
+    "scenario": "unchanged_stays_quiet",
+    "expected": "quiet"
+  },
+  {
+    "id": "m3-004",
+    "scenario": "stale_data_shown",
+    "expected": "stale_shown"
+  },
+  {
+    "id": "m3-005",
+    "scenario": "reauthorize_at_execution",
+    "expected": "denied"
+  },
+  {
+    "id": "m3-006",
+    "scenario": "dedup_no_double_send",
+    "expected": "single_send"
+  }
+]

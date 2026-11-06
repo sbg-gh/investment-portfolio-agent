@@ -1,0 +1,45 @@
+{
+  "suite": "m3-proactive-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "b139a477bf98f189c1e9725e6eb69b625de1a7bf9feb495cab8ef2485a34a6f8",
+  "total": 6,
+  "passed": 6,
+  "results": [
+    {
+      "id": "m3-001",
+      "expected": "single_effect",
+      "observed": "single_effect",
+      "passed": true
+    },
+    {
+      "id": "m3-002",
+      "expected": "isolated",
+      "observed": "isolated",
+      "passed": true
+    },
+    {
+      "id": "m3-003",
+      "expected": "quiet",
+      "observed": "quiet",
+      "passed": true
+    },
+    {
+      "id": "m3-004",
+      "expected": "stale_shown",
+      "observed": "stale_shown",
+      "passed": true
+    },
+    {
+      "id": "m3-005",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "m3-006",
+      "expected": "single_send",
+      "observed": "single_send",
+      "passed": true
+    }
+  ]
+}
