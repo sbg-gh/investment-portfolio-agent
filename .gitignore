@@ -8,3 +8,7 @@ dist/
 var/
 *.sqlite*
 .coverage
+
+# Agent workflow artifacts (plans, reviews) and transient worktrees
+.agents/
+.worktrees/
