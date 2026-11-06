@@ -422,3 +422,143 @@ class Store:
             self.db.execute("INSERT INTO paper_orders(id,portfolio_id,security_id,quantity,reference_price) "
                             "VALUES (?,?,?,?,?)",(order_id,portfolio_id,security_id,str(qty),str(price)))
         return order_id
+
+    def _require_user(self, user_id: str):
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("Registered user required")
+        if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise ValueError("Registered user required")
+
+    def set_notification_preferences(self, user_id: str, *, quiet_start, quiet_end,
+                                     materiality_threshold, cooldown_seconds, channel='local-sink'):
+        """UPSERT a registered user's notification preferences from the trusted context.
+
+        quiet_start/quiet_end are either both None (no quiet window) or ints in 0..23.
+        materiality_threshold is a nonnegative finite Decimal (0 allowed), stored as decimal
+        text. cooldown_seconds is a nonnegative int. Nothing is written on a validation error.
+        """
+        from .valuation import decimal_text
+        self._require_user(user_id)
+        if (quiet_start is None) != (quiet_end is None):
+            raise ValueError("Quiet hours require both start and end or neither")
+        if quiet_start is not None:
+            for hour in (quiet_start, quiet_end):
+                if not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23:
+                    raise ValueError("Quiet hours must be integers in 0..23")
+        if not isinstance(materiality_threshold, Decimal) or not materiality_threshold.is_finite() \
+                or materiality_threshold < 0:
+            raise ValueError("Materiality threshold must be a nonnegative finite Decimal")
+        if not isinstance(cooldown_seconds, int) or isinstance(cooldown_seconds, bool) \
+                or cooldown_seconds < 0:
+            raise ValueError("Cooldown seconds must be a nonnegative integer")
+        if not isinstance(channel, str) or not channel.strip():
+            raise ValueError("Notification channel required")
+        threshold_text = decimal_text(materiality_threshold)
+        with self.transaction():
+            self.db.execute(
+                "INSERT INTO notification_preferences"
+                "(user_id,quiet_start,quiet_end,materiality_threshold,cooldown_seconds,channel) "
+                "VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET "
+                "quiet_start=excluded.quiet_start,quiet_end=excluded.quiet_end,"
+                "materiality_threshold=excluded.materiality_threshold,"
+                "cooldown_seconds=excluded.cooldown_seconds,channel=excluded.channel",
+                (user_id, quiet_start, quiet_end, threshold_text, cooldown_seconds, channel))
+
+    def notification_preferences(self, user_id: str) -> dict:
+        """Return a user's notification preferences, with deterministic defaults when unset.
+
+        Defaults: no quiet window, threshold '0', cooldown 0, channel 'local-sink'.
+        """
+        self._require_user(user_id)
+        row = self.db.execute(
+            "SELECT quiet_start,quiet_end,materiality_threshold,cooldown_seconds,channel "
+            "FROM notification_preferences WHERE user_id=?", (user_id,)).fetchone()
+        if row is None:
+            return {'quiet_start': None, 'quiet_end': None, 'materiality_threshold': '0',
+                    'cooldown_seconds': 0, 'channel': 'local-sink'}
+        return {'quiet_start': row[0], 'quiet_end': row[1], 'materiality_threshold': row[2],
+                'cooldown_seconds': row[3], 'channel': row[4]}
+
+    def _within_quiet_hours(self, hour: int, quiet_start, quiet_end) -> bool:
+        # Quiet window is the half-open [quiet_start, quiet_end); wraps past midnight.
+        if quiet_start is None or quiet_end is None:
+            return False
+        if quiet_start <= quiet_end:
+            return quiet_start <= hour < quiet_end
+        return hour >= quiet_start or hour < quiet_end
+
+    def enqueue_notification(self, user_id: str, event: str, *, dedup_key: str, channel: str,
+                             now, materiality=None) -> str:
+        """Persist one outbox row BEFORE delivery (at-least-once); dedup on (user_id, dedup_key).
+
+        A repeat (user_id, dedup_key) returns the prior id and writes nothing. Otherwise the
+        delivery_status is 'suppressed' when the item falls in quiet hours, OR its materiality
+        is below the user's threshold, OR it is within cooldown_seconds of the last 'sent' row
+        for (user_id, event); else 'pending'. event is a fixed label, never private content.
+        """
+        from .valuation import utc
+        self._require_user(user_id)
+        if not isinstance(event, str) or not event.strip():
+            raise ValueError("Notification event label required")
+        if not isinstance(dedup_key, str) or not dedup_key.strip():
+            raise ValueError("Dedup key required")
+        if not isinstance(channel, str) or not channel.strip():
+            raise ValueError("Notification channel required")
+        existing = self.db.execute(
+            "SELECT id FROM notification_outbox WHERE user_id=? AND dedup_key=?",
+            (user_id, dedup_key)).fetchone()
+        if existing is not None:
+            return existing[0]
+        when = utc(now)
+        prefs = self.notification_preferences(user_id)
+        status = 'pending'
+        if self._within_quiet_hours(when.hour, prefs['quiet_start'], prefs['quiet_end']):
+            status = 'suppressed'
+        elif materiality is not None and Decimal(materiality) < Decimal(prefs['materiality_threshold']):
+            status = 'suppressed'
+        elif self._within_cooldown(user_id, event, when, prefs['cooldown_seconds']):
+            status = 'suppressed'
+        notification_id = str(uuid4())
+        with self.transaction():
+            # Store the caller-controlled UTC instant so cooldown is deterministic
+            # (never the wall-clock insert time).
+            self.db.execute(
+                "INSERT INTO notification_outbox"
+                "(id,user_id,event,dedup_key,channel,delivery_status,created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (notification_id, user_id, event, dedup_key, channel, status, when.isoformat()))
+        return notification_id
+
+    def _within_cooldown(self, user_id: str, event: str, when, cooldown_seconds: int) -> bool:
+        from datetime import datetime
+        if cooldown_seconds <= 0:
+            return False
+        row = self.db.execute(
+            "SELECT created_at FROM notification_outbox "
+            "WHERE user_id=? AND event=? AND delivery_status='sent' "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1", (user_id, event)).fetchone()
+        if row is None:
+            return False
+        last = datetime.fromisoformat(row[0])
+        return (when - last).total_seconds() < cooldown_seconds
+
+    def deliver_pending(self, notifier, now) -> int:
+        """Deliver every 'pending' outbox row (ordered by rowid) and mark it 'sent'.
+
+        The notifier must be idempotent on the dedup key so a retried deliver_pending adds no
+        duplicate delivery. Returns the number of rows advanced to 'sent'.
+        """
+        from .valuation import utc
+        when = utc(now).isoformat()
+        rows = self.db.execute(
+            "SELECT id,user_id,event,dedup_key FROM notification_outbox "
+            "WHERE delivery_status='pending' ORDER BY rowid").fetchall()
+        delivered = 0
+        for notification_id, user_id, event, dedup_key in rows:
+            notifier.notify(user_id, event, deduplication_key=dedup_key)
+            with self.transaction():
+                self.db.execute(
+                    "UPDATE notification_outbox SET delivery_status='sent' WHERE id=?",
+                    (notification_id,))
+            delivered += 1
+        return delivered

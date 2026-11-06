@@ -89,6 +89,15 @@ class PortfolioService:
     def memories(self, context):
         return self._run(context,'memories',lambda user:self._store.retrieve_memory(user))
 
+    def set_preferences(self, context, *, quiet_start, quiet_end,
+                        materiality_threshold, cooldown_seconds, channel='local-sink'):
+        return self._run(context,'set_preferences',lambda user:self._store.set_notification_preferences(
+            user,quiet_start=quiet_start,quiet_end=quiet_end,
+            materiality_threshold=materiality_threshold,cooldown_seconds=cooldown_seconds,channel=channel))
+
+    def preferences(self, context):
+        return self._run(context,'preferences',lambda user:self._store.notification_preferences(user))
+
     def traces(self, context):
         user = self._auth.require(context)
         return self._store.db.execute(
