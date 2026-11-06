@@ -37,3 +37,12 @@ Local bearer credentials are random, hashed in storage, revocable and expiring. 
 ## M2a valuation choices (2026-11-06)
 
 Value current holdings against an explicit source and market-data cutoff; do not imply historical portfolio reconstruction. Observed and fetched timestamps both gate eligibility. Stock/ETF prices and dated fund NAV use separate bases. Default elapsed-age windows are 24 and 72 hours, explicitly stored and configurable; market-calendar semantics are deferred. Missing/stale data prevents a complete total; an indicative priced subtotal remains labelled. Store private snapshots with quantities, observation evidence IDs and holdings hashes. All calculations remain deterministic Decimal operations; no financial performance or learning claim follows from fixture success.
+
+## M2 import provenance choices (2026-11-06)
+
+Two decisions were approved before implementation:
+
+1. Import-receipt storage uses one atomic schema v4 migration adding three dedicated tables (`import_receipts`, `holding_events`, `security_aliases`). The `holdings` table stays the current-state snapshot. Extending `holdings` or packing JSON payloads was rejected because it mixes current state with audit history.
+2. Effective-dated alias resolution runs before the authoritative validator and only maps a symbol to an already-registered `security_id` when a non-expired window `[effective_from, effective_to)` (effective_to NULL = open; newest effective_from wins, tie-break by rowid) covers the as-of date. On a miss, import falls through to the validator's existing auto-registration path. Aliases never override or invent authoritative identity. An authoritative-override short-circuit was rejected because it would violate the "validate through the authoritative adapter before auto-registration" invariant.
+
+Reimport no longer silently overwrites a holding's quantity: imports carry source and market as-of provenance, record an import receipt and a holding event, and are idempotent on a caller-supplied `(portfolio_id, idempotency_key)`. Removal is explicit and audited; removing a holding that does not exist raises a reconciliation error rather than a silent no-op. Identity still comes only from the authenticated context, and every operation authorizes ownership first. These are deterministic regression fixtures, not held-out learning evidence; passing establishes no adaptation claim.

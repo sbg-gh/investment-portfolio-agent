@@ -33,3 +33,7 @@ Application callers use PortfolioService with AuthContext from Authenticator.aut
 ## M2a valuation boundary
 
 OperatorService.ingest_observation accepts validated dated public observations. PortfolioService.value_portfolio and valuation_snapshot enforce current ownership and captured snapshot ownership. Source is explicit; stale/missing data never produces a complete total. See ../VALUATION.md for signatures, precision, freshness and snapshot contracts.
+
+## M2 import-provenance boundary
+
+`PortfolioService.import_holding_with_provenance(context, portfolio_id, symbol, quantity, *, source, market_as_of, idempotency_key)` authorizes ownership, resolves identity by effective-dated alias before the validator, upserts the holding, and records an import receipt plus a holding event atomically. A repeated call with the same `(portfolio_id, idempotency_key)` returns the prior security ID without re-applying. `remove_holding(context, portfolio_id, security_id, *, source, idempotency_key, market_as_of)` deletes the holding and records an audited `remove` receipt and event; removing a missing holding raises a reconciliation ValueError. `receipts(context, portfolio_id)` returns that owner's receipts. No method accepts a caller-supplied owner ID; identity comes only from the context. Trusted alias registration (`Store.register_alias`) is an internal/admin call used by fixtures, not an authenticated service method. All three service methods reuse the atomic success/failure trace path, so a failed action rolls back before a metadata-only trace is written.

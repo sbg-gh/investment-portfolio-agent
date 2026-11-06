@@ -48,6 +48,20 @@ class PortfolioService:
         return self._run(context,'import_holding',lambda user:self._store.import_holding(
             user,portfolio_id,symbol,quantity,self._validator))
 
+    def import_holding_with_provenance(self, context, portfolio_id, symbol, quantity, *,
+                                       source, market_as_of, idempotency_key):
+        return self._run(context,'import_holding_with_provenance',
+            lambda user:self._store.import_holding_with_provenance(
+                user,portfolio_id,symbol,quantity,self._validator,
+                source=source,market_as_of=market_as_of,idempotency_key=idempotency_key))
+
+    def remove_holding(self, context, portfolio_id, security_id, *, source, idempotency_key, market_as_of):
+        return self._run(context,'remove_holding',lambda user:self._store.remove_holding(
+            user,portfolio_id,security_id,source=source,idempotency_key=idempotency_key,market_as_of=market_as_of))
+
+    def receipts(self, context, portfolio_id):
+        return self._run(context,'receipts',lambda user:self._store.receipts(user,portfolio_id))
+
     def value_portfolio(self, context, portfolio_id, *, as_of, source, policy=None):
         from .valuation import value_portfolio
         return self._run(context,'value_portfolio',lambda user:value_portfolio(

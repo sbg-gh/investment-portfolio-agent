@@ -78,8 +78,29 @@ CREATE TABLE valuation_snapshots(
  payload TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE INDEX valuation_owner ON valuation_snapshots(user_id,portfolio_id);
 """
-MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA))
-SCHEMA_VERSION = 3
+M2_IMPORT_SCHEMA = """
+CREATE TABLE import_receipts(
+ id TEXT PRIMARY KEY, portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
+ security_id TEXT NOT NULL REFERENCES securities(id), idempotency_key TEXT NOT NULL,
+ source TEXT NOT NULL, market_as_of TEXT NOT NULL, quantity TEXT,
+ action TEXT NOT NULL CHECK(action IN ('upsert','remove')),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(portfolio_id,idempotency_key));
+CREATE TABLE holding_events(
+ id TEXT PRIMARY KEY, portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
+ security_id TEXT NOT NULL REFERENCES securities(id),
+ event TEXT NOT NULL CHECK(event IN ('import','remove')), quantity TEXT,
+ receipt_id TEXT NOT NULL REFERENCES import_receipts(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE security_aliases(
+ id TEXT PRIMARY KEY, symbol TEXT NOT NULL, security_id TEXT NOT NULL REFERENCES securities(id),
+ source TEXT NOT NULL, effective_from TEXT NOT NULL, effective_to TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX alias_lookup ON security_aliases(symbol,effective_from);
+CREATE INDEX receipt_owner ON import_receipts(portfolio_id);
+"""
+MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA), (4, M2_IMPORT_SCHEMA))
+SCHEMA_VERSION = 4
 
 def statements(script):
     pending = ''

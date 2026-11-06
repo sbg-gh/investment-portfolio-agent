@@ -121,6 +121,101 @@ class Store:
                             "DO UPDATE SET quantity=excluded.quantity",(portfolio_id,security.security_id,str(qty)))
         return security.security_id
 
+    def register_alias(self, symbol: str, security_id: str, source: str,
+                       effective_from, effective_to=None):
+        """Trusted internal: map a symbol to an ALREADY-registered security over a window.
+
+        Never overrides or invents authoritative identity. Window is [effective_from, effective_to).
+        """
+        from .valuation import utc
+        if not symbol.strip() or not source.strip():
+            raise ValueError("Alias symbol and provenance required")
+        if not self.db.execute("SELECT 1 FROM securities WHERE id=?", (security_id,)).fetchone():
+            raise ValueError("Alias target security is not registered")
+        start = utc(effective_from).isoformat()
+        end = None if effective_to is None else utc(effective_to).isoformat()
+        if end is not None and end <= start:
+            raise ValueError("Alias effective_to must be after effective_from")
+        with self.transaction():
+            self.db.execute("INSERT INTO security_aliases(id,symbol,security_id,source,effective_from,effective_to) "
+                            "VALUES (?,?,?,?,?,?)", (str(uuid4()), symbol, security_id, source, start, end))
+
+    def resolve_alias(self, symbol: str, as_of) -> str | None:
+        """Resolve a symbol to a security_id as of a date, or None. Never auto-registers."""
+        from .valuation import utc
+        at = utc(as_of).isoformat()
+        row = self.db.execute(
+            "SELECT security_id FROM security_aliases WHERE symbol=? AND effective_from<=? "
+            "AND (effective_to IS NULL OR ?<effective_to) ORDER BY effective_from DESC, rowid DESC LIMIT 1",
+            (symbol, at, at)).fetchone()
+        return row[0] if row else None
+
+    def _existing_receipt(self, portfolio_id: str, idempotency_key: str):
+        return self.db.execute("SELECT security_id FROM import_receipts WHERE portfolio_id=? AND idempotency_key=?",
+                               (portfolio_id, idempotency_key)).fetchone()
+
+    def import_holding_with_provenance(self, user_id: str, portfolio_id: str, symbol: str,
+                                       quantity: str, validator: SecurityValidator, *,
+                                       source: str, market_as_of, idempotency_key: str):
+        """Audited, idempotent, provenance-bearing import. Identity via alias first, else validator."""
+        from .valuation import utc
+        self._authorize(user_id, portfolio_id)
+        if not source.strip() or not idempotency_key.strip():
+            raise ValueError("Import source and idempotency key required")
+        qty = positive(quantity)
+        cutoff = utc(market_as_of).isoformat()
+        existing = self._existing_receipt(portfolio_id, idempotency_key)
+        if existing is not None:
+            return existing[0]
+        security_id = self.resolve_alias(symbol, market_as_of)
+        with self.transaction():
+            if security_id is None:
+                security = validator.resolve(symbol)
+                self.register(security)
+                security_id = security.security_id
+            self.db.execute("INSERT INTO holdings VALUES (?,?,?) ON CONFLICT(portfolio_id,security_id) "
+                            "DO UPDATE SET quantity=excluded.quantity", (portfolio_id, security_id, str(qty)))
+            receipt_id = str(uuid4())
+            self.db.execute("INSERT INTO import_receipts(id,portfolio_id,security_id,idempotency_key,source,"
+                            "market_as_of,quantity,action) VALUES (?,?,?,?,?,?,?,'upsert')",
+                            (receipt_id, portfolio_id, security_id, idempotency_key, source, cutoff, str(qty)))
+            self.db.execute("INSERT INTO holding_events(id,portfolio_id,security_id,event,quantity,receipt_id) "
+                            "VALUES (?,?,?,'import',?,?)",
+                            (str(uuid4()), portfolio_id, security_id, str(qty), receipt_id))
+        return security_id
+
+    def remove_holding(self, user_id: str, portfolio_id: str, security_id: str, *,
+                       source: str, idempotency_key: str, market_as_of):
+        """Explicit audited removal. No silent no-op overwrite; a missing holding is a reconciliation."""
+        from .valuation import utc
+        self._authorize(user_id, portfolio_id)
+        if not source.strip() or not idempotency_key.strip():
+            raise ValueError("Removal source and idempotency key required")
+        cutoff = utc(market_as_of).isoformat()
+        existing = self._existing_receipt(portfolio_id, idempotency_key)
+        if existing is not None:
+            return existing[0]
+        if not self.db.execute("SELECT 1 FROM holdings WHERE portfolio_id=? AND security_id=?",
+                               (portfolio_id, security_id)).fetchone():
+            raise ValueError("Nothing to remove; reconciliation required")
+        with self.transaction():
+            self.db.execute("DELETE FROM holdings WHERE portfolio_id=? AND security_id=?",
+                            (portfolio_id, security_id))
+            receipt_id = str(uuid4())
+            self.db.execute("INSERT INTO import_receipts(id,portfolio_id,security_id,idempotency_key,source,"
+                            "market_as_of,quantity,action) VALUES (?,?,?,?,?,?,NULL,'remove')",
+                            (receipt_id, portfolio_id, security_id, idempotency_key, source, cutoff))
+            self.db.execute("INSERT INTO holding_events(id,portfolio_id,security_id,event,quantity,receipt_id) "
+                            "VALUES (?,?,?,'remove',NULL,?)",
+                            (str(uuid4()), portfolio_id, security_id, receipt_id))
+        return security_id
+
+    def receipts(self, user_id: str, portfolio_id: str):
+        self._authorize(user_id, portfolio_id)
+        return self.db.execute(
+            "SELECT id,security_id,source,market_as_of,quantity,action FROM import_receipts "
+            "WHERE portfolio_id=? ORDER BY rowid", (portfolio_id,)).fetchall()
+
     def holdings(self, user_id: str, portfolio_id: str):
         self._authorize(user_id,portfolio_id)
         return self.db.execute("SELECT security_id,quantity FROM holdings WHERE portfolio_id=? ORDER BY security_id",

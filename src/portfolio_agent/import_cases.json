@@ -1,0 +1,22 @@
+[
+  {
+    "id": "import-001",
+    "scenario": "import_receipt",
+    "expected": "receipt_recorded"
+  },
+  {
+    "id": "import-002",
+    "scenario": "explicit_removal",
+    "expected": "removed"
+  },
+  {
+    "id": "import-003",
+    "scenario": "effective_dated_alias",
+    "expected": "alias_resolved"
+  },
+  {
+    "id": "import-004",
+    "scenario": "idempotent_retry",
+    "expected": "single_apply"
+  }
+]

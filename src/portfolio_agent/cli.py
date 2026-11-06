@@ -30,12 +30,14 @@ def main():
         demo()
     else:
         if args.command == 'eval':
-            from .evaluation import evaluate
+            from .evaluation import evaluate as evaluate_safety
+            from .import_evaluation import evaluate as evaluate_import
+            reports = [evaluate_safety(), evaluate_import()]
         else:
             from .valuation_evaluation import evaluate
-        report = evaluate()
-        print(json.dumps(report,indent=2))
-        if report['passed'] != report['total']:
+            reports = [evaluate()]
+        print(json.dumps(reports if len(reports)>1 else reports[0],indent=2))
+        if any(report['passed'] != report['total'] for report in reports):
             raise SystemExit(1)
 
 if __name__ == '__main__':

@@ -4,11 +4,11 @@
 
 User owns portfolios; portfolio owns positions and paper records. Every externally callable operation obtains the user from trusted authentication, then checks ownership. IDs alone never authorize access. Future repositories must scope SQL reads and writes, caches, events, prompts and notifications. Shared instrument metadata is public; portfolio membership is private.
 
-M0 uses opaque UUID portfolio IDs and explicit trusted caller IDs. It implements a holdings snapshot, not a transaction ledger. Reimporting a holding replaces its quantity. Zero/removal and sells are not supported yet; add explicit audited removal in M2. Positive finite decimal strings preserve precision. Money and quantities must never use binary floats.
+M0 uses opaque UUID portfolio IDs and explicit trusted caller IDs. It implements a holdings snapshot, not a transaction ledger. The M0 `import_holding` path replaces a holding's quantity silently; M2 adds `import_holding_with_provenance`, which records source and market as-of provenance per import, writes an import receipt and a holding event, and is idempotent on a caller-supplied `(portfolio_id, idempotency_key)`. Removal is now explicit and audited through `remove_holding`: removing a holding that does not exist raises a reconciliation error rather than a silent no-op. The legacy `import_holding` remains for back-compat. Positive finite decimal strings preserve precision. Money and quantities must never use binary floats.
 
 ## Security master and membership
 
-Stable internal security ID is the primary identity; symbols are display/resolution aliases, not permanent identities. M0's one unique symbol per security is a simplified fixture constraint. M2 introduces effective-dated symbol aliases, exchange/provider identifiers, currency, status, eligibility evidence, validation timestamps and corporate-action reconciliation.
+Stable internal security ID is the primary identity; symbols are display/resolution aliases, not permanent identities. M0's one unique symbol per security is a simplified fixture constraint. M2 now implements effective-dated symbol aliases: `resolve_alias(symbol, as_of)` maps a symbol to an already-registered security over a half-open window `[effective_from, effective_to)` (newest effective_from wins). Resolution runs before the authoritative validator and never overrides or invents authoritative identity; on a miss, import falls through to the validator's auto-registration. Exchange/provider identifiers, currency, status, eligibility evidence, validation timestamps and corporate-action reconciliation remain M2 work.
 
 Three independent concepts:
 
@@ -32,4 +32,6 @@ Market observations carry security ID, value, currency, observation time, fetch 
 
 M1 adds `credentials` and owner-scoped `execution_traces`; see ../M1.md for migration and access contracts.
 
-M2a schema v3 adds shared market_observations and private valuation_snapshots. Snapshots embed current held quantities, market cutoff, source and evidence IDs. They are not historical position ledgers. Effective-dated aliases and import/removal provenance remain deferred to the next M2 slice.
+M2a schema v3 adds shared market_observations and private valuation_snapshots. Snapshots embed current held quantities, market cutoff, source and evidence IDs. They are not historical position ledgers.
+
+M2 schema v4 adds private `import_receipts` (one per applied import/removal, with source, market as-of, quantity, action and a `UNIQUE(portfolio_id, idempotency_key)` constraint enforcing idempotency), `holding_events` (an audit event per import/removal referencing its receipt), and shared `security_aliases` (effective-dated symbol-to-security mappings). `holdings` stays the current-state snapshot; audit history lives in the new tables. Transactions carry external idempotency keys as the DOMAIN ledger note requires.
