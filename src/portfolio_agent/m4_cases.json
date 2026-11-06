@@ -1,0 +1,37 @@
+[
+  {
+    "id": "m4-001",
+    "scenario": "offline_chat_runs_with_fake_model",
+    "expected": "answered"
+  },
+  {
+    "id": "m4-002",
+    "scenario": "injection_via_message_refused",
+    "expected": "refused"
+  },
+  {
+    "id": "m4-003",
+    "scenario": "injection_via_context_refused",
+    "expected": "refused"
+  },
+  {
+    "id": "m4-004",
+    "scenario": "injection_via_tool_result_refused",
+    "expected": "refused"
+  },
+  {
+    "id": "m4-005",
+    "scenario": "unauthorized_portfolio_denied",
+    "expected": "denied"
+  },
+  {
+    "id": "m4-006",
+    "scenario": "stale_evidence_shown_not_fabricated",
+    "expected": "stale_and_missing_shown"
+  },
+  {
+    "id": "m4-007",
+    "scenario": "bounded_context_enforced",
+    "expected": "bounded"
+  }
+]
