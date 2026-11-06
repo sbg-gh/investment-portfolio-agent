@@ -1,0 +1,22 @@
+{
+  ".env.example": "cdd981c406af3c48d26bfe579375c08f7c75928bf6184cd638e392290f81e059",
+  ".github/workflows/ci.yml": "bb06f4e27e16a301f96f7be781806629d8751353b52f19a10d0176ca7334dfa5",
+  ".gitignore": "0ab117f42c2b6129cb6ff11c609bbd20340a705b3211b7ac4c9850ef01adfd44",
+  "AGENTS.md": "110c3deba1ad45a5b1b6def1880921e9a4dc7a55f65e8046760b08abcc39125e",
+  "README.md": "710b9428faf9fb92706e5c87e7d8c0eb9cb361fdc7c1d2a65e75a40951cc8d35",
+  "VERIFICATION.md": "16eaf7f02b926a775747555ac7910b73ac4d2f7e99ff947868f234ccd9b09101",
+  "docs/ARCHITECTURE.md": "b76de0993d80f3fbdadf405c4f85bd83b28559ccbcfebb319ce4e7640a165c73",
+  "docs/DECISIONS.md": "1c243ff85c17b5e04d98e9c7700956eb073fa42208e2da4c5dca6b6ebc8cbe89",
+  "docs/HANDOFF.md": "897387480be622d3cc70aa47a1ed1c3a875a0b005c5c2495d3beba7158c056ba",
+  "docs/MILESTONES.md": "da227842278a6980bebcfdd5ecd892c30761139c2153573e63fe589cb1aa9b71",
+  "docs/OPERATIONS.md": "aa1df6bbb10ef4e1afa946f4b460a670fcdc4f65fb49d1df95e3570f25c23e79",
+  "docs/specs/DOMAIN.md": "534f5ec658796c2cd232ba9e8d9c3be2955d3e211bf5cc7a8e939b2459efc806",
+  "docs/specs/MEMORY.md": "4d452f6b30b3ed7212e628f9e062c22487866eeddb99e7ad10dca725c01bf7f6",
+  "docs/specs/SERVICES.md": "93b85c927d9ae0a39a6951b2a1752b8cf8b9d0438c389926259ca473098fa3ad",
+  "pyproject.toml": "4c528b5d529305921090745739654e510f7dcfb9fd4e555a6ca8aab1117993ad",
+  "src/portfolio_agent/__init__.py": "75eb6dcf8b5483b314fb5b007cf0f84dc2337280c5b22e3409aab5e2b2014be6",
+  "src/portfolio_agent/cli.py": "065127f01a7ef3879b8d99e7ada7fe842d1aeb386a5e9e123df2ba5646f499ef",
+  "src/portfolio_agent/core.py": "eae83b8651e2c53b69e2efef1be946f195ecb889e14bcad3e843cf562be0ae42",
+  "src/portfolio_agent/ports.py": "2bb10f2abd26304f81bcf7df825d230e808f04bb9952e4066e1771861d1f14dc",
+  "tests/test_core.py": "459d116b89a90f8a7556c1d02affb16f32fed5b8efc440f38a07c71d0e2a8d5e"
+}
