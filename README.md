@@ -39,6 +39,8 @@ The commands use synthetic data and fresh in-memory databases. No API keys, mark
 
 - Durable, deterministic job store (leases, bounded retries, dead-letter), a persisted notification outbox with per-user preferences and dedup, and minimal monitoring rules (stale-coverage + materiality) that stay quiet on unchanged inputs and re-authorize ownership at execution. A test-invoked runner, no background thread and an in-memory delivery sink.
 
+- Authenticated offline chat over the common services with a bounded, vendor-neutral local-model adapter: owner-scoped context within a token budget, evidence rendering that reuses M2a stale/missing/as-of semantics (never fabricated), and READ-ONLY specialist tools behind a deterministic schema+authorization gate. Model output is untrusted — it only proposes; deterministic code authorizes and executes, so prompt injection cannot grant access or actions.
+
 ## Boundaries
 
 M1 implements local identity, persistence and service boundaries. It does not include an HTTP listener, interactive login, UI, prompt/cache authorization adapters or production deployment. Store, credential provisioning and backup functions are trusted operator internals. They are not endpoints. Python code and anyone with database/process access remain trusted; this is not an in-process security sandbox.
@@ -51,6 +53,7 @@ Real providers, financial accounting, proactive jobs, local inference, conversat
 - [M1 implementation and local usage](docs/M1.md)
 - [M2 import provenance and reconciliation](docs/M2.md)
 - [M3 proactive service](docs/M3.md)
+- [M4 hybrid chat and local model](docs/M4.md)
 - [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
 - [Read-only valuation and example](docs/VALUATION.md)
 - [Testing and evaluation](docs/TESTING.md)

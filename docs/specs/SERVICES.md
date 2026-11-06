@@ -8,9 +8,13 @@
 
 MarketData, LocalModel and Notifier protocols in ports.py define future integration seams, not implemented integrations. Provider adapters must enforce timeouts, retries with backoff, provenance, schema validation and data licensing constraints. Model adapters have explicit token bounds and a service-level concurrency limit. Treat retrieved documents as untrusted data, never executable instructions.
 
-## Planned chat boundary (M1/M4)
+## M4 chat boundary (implemented)
 
-A request contains conversation ID, message and optional authorized portfolio ID. Server-derived identity is carried in an immutable request context with trace ID. Responses include explanation, evidence references, as-of times, freshness warnings and proposed actions. Action proposals pass deterministic authorization and schema checks. Do not accept client-supplied owner IDs as authority.
+`ChatService(service, model, *, config, clock=None).chat(context, *, conversation_id, message, portfolio_id=None)` is the authenticated, READ-ONLY chat contract. Identity comes ONLY from the AuthContext — no client-, chat- or model-supplied owner id is ever trusted as authority. The whole turn runs through `PortfolioService._run` with operation name `chat` and a PAYLOAD-FREE trace (no message body, holdings, symbols or sources). `portfolio_id`, when supplied, is authorized through the M1 path before any read; a cross-user or forged/expired context is denied.
+
+The turn assembles a bounded, owner-scoped context (that owner's holdings plus an M2a valuation within `MODEL_CONTEXT_BUDGET`; exceeding the budget raises a bounded-context error), then asks the UNTRUSTED model to propose an explanation plus zero or more structured tool calls. Every proposed call passes the deterministic schema+authorization gate — `validate_proposal` against a fixed allow-list of READ-ONLY tools, then a fresh `Store._authorize` re-check — BEFORE execution; a rejected, malformed or cross-user proposal executes nothing and is dropped. The response is `{explanation, evidence, proposed_actions, conversation_id, request_id}`: `evidence` is deterministic references with `security_id`/`status`/`market_value`/`observed_at`/`as_of` reusing M2a stale/missing freshness (never fabricated); `proposed_actions` are validated, re-authorized, executed READ-ONLY calls only; `conversation_id` is the opaque echoed correlation token; `request_id` is the payload-free trace id. An unparseable or malformed model output yields a generic refusal and no actions.
+
+The model adapters live in `model.py` (stdlib only): `OpenAICompatibleModel` (urllib `/v1/chat/completions`), `BoundedModel` (concurrency + output-token caps) and the injectable `ScriptedModel`, selected by `ModelConfig.from_env` (`MODEL_ENDPOINT`/`MODEL_NAME`/`MODEL_MAX_CONCURRENCY`/`MODEL_CONTEXT_BUDGET`/`MODEL_MAX_OUTPUT_TOKENS`). No schema was added: `conversation_id` is an opaque echoed token, `request_id` reuses `execution_traces.request_id`, and no conversation message is persisted. See ../M4.md for the full contract and THE CENTRAL SECURITY PROPERTY.
 
 ## M3 job and outbox contract (implemented)
 
