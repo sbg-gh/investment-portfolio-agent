@@ -1,0 +1,27 @@
+[
+  {
+    "id": "m2-001",
+    "scenario": "outside_universe_accepted",
+    "expected": "accepted"
+  },
+  {
+    "id": "m2-002",
+    "scenario": "ambiguous_import_quarantined",
+    "expected": "quarantined"
+  },
+  {
+    "id": "m2-003",
+    "scenario": "enhancement_76th_rejected",
+    "expected": "queued"
+  },
+  {
+    "id": "m2-004",
+    "scenario": "baseline_coverage_retained",
+    "expected": "covered"
+  },
+  {
+    "id": "m2-005",
+    "scenario": "financial_fixtures_reconcile",
+    "expected": "reconciled"
+  }
+]

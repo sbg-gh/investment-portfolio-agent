@@ -1,0 +1,39 @@
+{
+  "suite": "m2-completion-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "52682266139b50e200fd600188af99e41097c0e1888eeeefb256192193032f68",
+  "total": 5,
+  "passed": 5,
+  "results": [
+    {
+      "id": "m2-001",
+      "expected": "accepted",
+      "observed": "accepted",
+      "passed": true
+    },
+    {
+      "id": "m2-002",
+      "expected": "quarantined",
+      "observed": "quarantined",
+      "passed": true
+    },
+    {
+      "id": "m2-003",
+      "expected": "queued",
+      "observed": "queued",
+      "passed": true
+    },
+    {
+      "id": "m2-004",
+      "expected": "covered",
+      "observed": "covered",
+      "passed": true
+    },
+    {
+      "id": "m2-005",
+      "expected": "reconciled",
+      "observed": "reconciled",
+      "passed": true
+    }
+  ]
+}

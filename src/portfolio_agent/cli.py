@@ -32,7 +32,8 @@ def main():
         if args.command == 'eval':
             from .evaluation import evaluate as evaluate_safety
             from .import_evaluation import evaluate as evaluate_import
-            reports = [evaluate_safety(), evaluate_import()]
+            from .m2_evaluation import evaluate as evaluate_m2
+            reports = [evaluate_safety(), evaluate_import(), evaluate_m2()]
         else:
             from .valuation_evaluation import evaluate
             reports = [evaluate()]
