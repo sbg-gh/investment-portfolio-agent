@@ -47,6 +47,7 @@ Real providers, financial accounting, proactive jobs, local inference, conversat
 
 - [Architecture](docs/ARCHITECTURE.md) and [decisions](docs/DECISIONS.md)
 - [M1 implementation and local usage](docs/M1.md)
+- [M2 import provenance and reconciliation](docs/M2.md)
 - [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
 - [Read-only valuation and example](docs/VALUATION.md)
 - [Testing and evaluation](docs/TESTING.md)
