@@ -41,12 +41,119 @@ def _build_v4(path):
     db.close()
 
 
-class V5MigrationTests(unittest.TestCase):
-    def test_fresh_database_ends_at_v5(self):
+def _build_v5(path):
+    """Build a v5 database with synthetic holdings/transactions/admissions/coverage."""
+    db = sqlite3.connect(path)
+    migrate(db, MIGRATIONS[:5])
+    db.execute("INSERT INTO users VALUES ('alice')")
+    db.execute("INSERT INTO portfolios VALUES ('p','alice','private')")
+    db.execute("INSERT INTO securities(id,symbol,kind,country,source) VALUES ('s','S','stock','US','fixture')")
+    db.execute("INSERT INTO holdings VALUES ('p','s','1.25')")
+    db.execute("INSERT INTO transactions(id,portfolio_id,security_id,side,quantity,source,idempotency_key,occurred_at) "
+               "VALUES ('t','p','s','buy','1.25','fixture','k1','2026-01-01T00:00:00+00:00')")
+    db.execute("INSERT INTO monitoring_admissions(id,security_id,state,reason,operator,position,proposed_at) "
+               "VALUES ('m','s','admitted','fixture','admin',NULL,'2026-01-01T00:00:00+00:00')")
+    db.execute("INSERT INTO baseline_coverage(security_id,covered,since) VALUES ('s',1,'2026-01-01T00:00:00+00:00')")
+    db.commit()
+    db.close()
+
+
+class V6MigrationTests(unittest.TestCase):
+    def test_fresh_database_ends_at_v6(self):
         s = Store()
         self.addCleanup(s.close)
-        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 5)
-        self.assertEqual(SCHEMA_VERSION, 5)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 6)
+        self.assertEqual(SCHEMA_VERSION, 6)
+        for table in ('jobs', 'notification_outbox', 'notification_preferences', 'monitoring_state'):
+            self.assertIsNotNone(
+                s.db.execute("SELECT name FROM sqlite_master WHERE name=?", (table,)).fetchone())
+
+    def test_v5_upgrade_preserves_existing_data(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v5(path)
+            upgraded = Store(str(path))
+            try:
+                self.assertEqual(upgraded.holdings('alice', 'p'), [('s', '1.25')])
+                self.assertEqual(upgraded.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM transactions').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM monitoring_admissions').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM baseline_coverage').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0], 0)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM notification_outbox').fetchone()[0], 0)
+            finally:
+                upgraded.close()
+
+    def test_broken_v6_upgrade_rolls_back_to_v5(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v5(path)
+            db = sqlite3.connect(path)
+            self.addCleanup(db.close)
+            broken = MIGRATIONS[:5] + ((6, 'CREATE TABLE partial(id TEXT);\nINSERT INTO nonexistent VALUES (1);\n'),)
+            with self.assertRaises(sqlite3.OperationalError):
+                migrate(db, broken)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 5)
+            self.assertEqual(db.execute('SELECT * FROM holdings').fetchall(), [('p', 's', '1.25')])
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='partial'").fetchone())
+
+    def test_future_schema_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'future.sqlite3'
+            db = sqlite3.connect(path)
+            db.execute('PRAGMA user_version=999')
+            db.close()
+            with self.assertRaises(ValueError):
+                Store(str(path))
+
+    def test_v6_backup_restore_preserves_new_tables_and_revokes_credentials(self):
+        from portfolio_agent.auth import Authenticator
+        from portfolio_agent.backup import backup, restore
+        from portfolio_agent.core import FixtureValidator, ValidatedSecurity
+        from portfolio_agent.services import PortfolioService
+        s = Store()
+        self.addCleanup(s.close)
+        s.create_user('alice')
+        auth = Authenticator(s)
+        app = PortfolioService(s, auth,
+                               FixtureValidator({'DEMO': ValidatedSecurity('s0', 'DEMO', 'etf', 'US', 'fixture')}))
+        ctx = auth.authenticate(auth.provision('alice'))
+        p = app.create_portfolio(ctx, 'private')
+        s.import_holding_with_provenance('alice', p, 'DEMO', '2.5', app._validator, source='fixture',
+                                         market_as_of=datetime(2026, 11, 6, 21, tzinfo=timezone.utc),
+                                         idempotency_key='k1')
+        s.db.execute("INSERT INTO jobs(id,type,public_scope,idempotency_key,due_at,correlation_id) "
+                     "VALUES ('j','monitor','global','ikey','2026-11-06T21:00:00+00:00','corr')")
+        s.db.execute("INSERT INTO notification_outbox(id,user_id,event,dedup_key,channel) "
+                     "VALUES ('o','alice','stale','d1','local-sink')")
+        s.db.execute("INSERT INTO notification_preferences(user_id) VALUES ('alice')")
+        s.db.execute("INSERT INTO monitoring_state(security_id,rule,state_key,observed_at) "
+                     "VALUES ('s0','stale-coverage','sk','2026-11-06T21:00:00+00:00')")
+        s.db.commit()
+        with tempfile.TemporaryDirectory() as td:
+            snapshot = Path(td) / 'snap.sqlite3'
+            recovered = Path(td) / 'restored.sqlite3'
+            backup(s, snapshot)
+            restore(snapshot, recovered)
+            restored = Store(str(recovered))
+            try:
+                self.assertEqual(restored.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
+                self.assertEqual(restored.db.execute('PRAGMA integrity_check').fetchone(), ('ok',))
+                self.assertEqual(restored.db.execute('PRAGMA foreign_key_check').fetchall(), [])
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM notification_outbox').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM notification_preferences').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM monitoring_state').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM credentials WHERE revoked=0').fetchone()[0], 0)
+            finally:
+                restored.close()
+
+
+class V5MigrationTests(unittest.TestCase):
+    def test_fresh_database_has_v5_tables(self):
+        s = Store()
+        self.addCleanup(s.close)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
         for table in ('transactions', 'monitoring_admissions', 'baseline_coverage'):
             self.assertIsNotNone(
                 s.db.execute("SELECT name FROM sqlite_master WHERE name=?", (table,)).fetchone())

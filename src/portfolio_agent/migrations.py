@@ -119,9 +119,41 @@ CREATE TABLE baseline_coverage(
 CREATE INDEX transaction_lookup ON transactions(portfolio_id,security_id);
 CREATE INDEX admission_queue ON monitoring_admissions(state,position);
 """
+M3_PROACTIVE_SCHEMA = """
+CREATE TABLE jobs(
+ id TEXT PRIMARY KEY, type TEXT NOT NULL, owner_ref TEXT, public_scope TEXT,
+ idempotency_key TEXT NOT NULL, due_at TEXT NOT NULL, lease_expires_at TEXT,
+ attempts INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','leased','done','dead')),
+ correlation_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CHECK((owner_ref IS NOT NULL)<>(public_scope IS NOT NULL)),
+ UNIQUE(type, idempotency_key));
+CREATE TABLE notification_outbox(
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+ event TEXT NOT NULL, dedup_key TEXT NOT NULL, channel TEXT NOT NULL,
+ delivery_status TEXT NOT NULL DEFAULT 'pending'
+   CHECK(delivery_status IN ('pending','sent','suppressed')),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(user_id, dedup_key));
+CREATE TABLE notification_preferences(
+ user_id TEXT PRIMARY KEY REFERENCES users(id),
+ quiet_start INTEGER, quiet_end INTEGER,
+ materiality_threshold TEXT NOT NULL DEFAULT '0',
+ cooldown_seconds INTEGER NOT NULL DEFAULT 0,
+ channel TEXT NOT NULL DEFAULT 'local-sink',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE monitoring_state(
+ security_id TEXT NOT NULL REFERENCES securities(id),
+ rule TEXT NOT NULL, state_key TEXT NOT NULL, observed_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(security_id, rule));
+CREATE INDEX job_due ON jobs(status, due_at);
+CREATE INDEX outbox_owner ON notification_outbox(user_id, created_at);
+"""
 MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA),
-              (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA))
-SCHEMA_VERSION = 5
+              (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA),
+              (6, M3_PROACTIVE_SCHEMA))
+SCHEMA_VERSION = 6
 
 def statements(script):
     pending = ''
