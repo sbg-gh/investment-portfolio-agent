@@ -109,8 +109,7 @@ class V5MigrationTests(unittest.TestCase):
                              occurred_at=datetime(2026, 11, 6, 21, tzinfo=timezone.utc))
         s.db.execute("INSERT INTO monitoring_admissions(id,security_id,state,reason,operator,position,proposed_at) "
                      "VALUES ('m','s0','admitted','fixture','admin',NULL,'2026-11-06T21:00:00+00:00')")
-        s.db.execute("INSERT INTO baseline_coverage(security_id,covered,since) "
-                     "VALUES ('s0',1,'2026-11-06T21:00:00+00:00')")
+        # baseline_coverage for s0 is populated atomically by the import above (FEAT-002).
         s.db.commit()
         with tempfile.TemporaryDirectory() as td:
             snapshot = Path(td) / 'snap.sqlite3'

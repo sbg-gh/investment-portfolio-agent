@@ -4,6 +4,7 @@ Internal persistence API, NOT an authentication boundary. Expose application ser
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import sqlite3
 from typing import Protocol
@@ -11,6 +12,8 @@ from uuid import uuid4
 
 RESEARCH_TARGET = 400
 MONITORING_CAPACITY = 75
+# Max distinct securities held pending beyond the active tier before a proposal is rejected.
+ADMISSION_QUEUE_CAPACITY = 25
 SUPPORTED_KINDS = {"stock", "etf", "mutual_fund"}
 
 @dataclass(frozen=True)
@@ -110,15 +113,30 @@ class Store:
         if not self.db.execute("SELECT 1 FROM securities WHERE id=?",(security.security_id,)).fetchone():
             raise ValueError("Symbol conflicts with an existing security")
 
+    def _grant_baseline_coverage(self, security_id: str, since: str):
+        # Deterministic: a held security retains coverage, independent of monitoring.
+        self.db.execute("INSERT OR IGNORE INTO baseline_coverage(security_id,covered,since) VALUES (?,1,?)",
+                        (security_id, since))
+
+    def _sync_baseline_coverage(self, security_id: str):
+        # Coverage-set == held-set: drop the row once no portfolio holds the security.
+        held = self.db.execute("SELECT 1 FROM holdings WHERE security_id=? LIMIT 1",
+                               (security_id,)).fetchone()
+        if not held:
+            self.db.execute("DELETE FROM baseline_coverage WHERE security_id=?", (security_id,))
+
     def import_holding(self, user_id: str, portfolio_id: str, symbol: str,
                        quantity: str, validator: SecurityValidator):
+        from .valuation import utc
         self._authorize(user_id,portfolio_id)
         qty = positive(quantity)
         security = validator.resolve(symbol)
+        now = utc(datetime.now(timezone.utc)).isoformat()
         with self.transaction():
             self.register(security)
             self.db.execute("INSERT INTO holdings VALUES (?,?,?) ON CONFLICT(portfolio_id,security_id) "
                             "DO UPDATE SET quantity=excluded.quantity",(portfolio_id,security.security_id,str(qty)))
+            self._grant_baseline_coverage(security.security_id, now)
         return security.security_id
 
     def register_alias(self, symbol: str, security_id: str, source: str,
@@ -175,6 +193,7 @@ class Store:
                 security_id = security.security_id
             self.db.execute("INSERT INTO holdings VALUES (?,?,?) ON CONFLICT(portfolio_id,security_id) "
                             "DO UPDATE SET quantity=excluded.quantity", (portfolio_id, security_id, str(qty)))
+            self._grant_baseline_coverage(security_id, cutoff)
             receipt_id = str(uuid4())
             self.db.execute("INSERT INTO import_receipts(id,portfolio_id,security_id,idempotency_key,source,"
                             "market_as_of,quantity,action) VALUES (?,?,?,?,?,?,?,'upsert')",
@@ -201,6 +220,7 @@ class Store:
         with self.transaction():
             self.db.execute("DELETE FROM holdings WHERE portfolio_id=? AND security_id=?",
                             (portfolio_id, security_id))
+            self._sync_baseline_coverage(security_id)
             receipt_id = str(uuid4())
             self.db.execute("INSERT INTO import_receipts(id,portfolio_id,security_id,idempotency_key,source,"
                             "market_as_of,quantity,action) VALUES (?,?,?,?,?,?,NULL,'remove')",
@@ -220,6 +240,33 @@ class Store:
         self._authorize(user_id,portfolio_id)
         return self.db.execute("SELECT security_id,quantity FROM holdings WHERE portfolio_id=? ORDER BY security_id",
                                (portfolio_id,)).fetchall()
+
+    def baseline_coverage(self, security_id: str):
+        """Return the covered flag (0/1) for a security, or None when uncovered/unknown.
+
+        Public market-coverage status; not owner-scoped and carries no private context.
+        """
+        row = self.db.execute("SELECT covered FROM baseline_coverage WHERE security_id=?",
+                              (security_id,)).fetchone()
+        return None if row is None else row[0]
+
+    def reconcile_baseline_coverage(self):
+        """Assert covered-set == distinct-held-securities-set; return discrepancies.
+
+        Rows are (security_id, reason) where reason is 'held_without_coverage' (a held
+        security missing covered=1) or 'coverage_without_holder' (a covered row for an
+        unheld security). An empty list means coverage is consistent.
+        """
+        held = {row[0] for row in self.db.execute(
+            "SELECT DISTINCT security_id FROM holdings").fetchall()}
+        covered = {row[0] for row in self.db.execute(
+            "SELECT security_id FROM baseline_coverage WHERE covered=1").fetchall()}
+        rows = []
+        for security_id in sorted(held - covered):
+            rows.append((security_id, 'held_without_coverage'))
+        for security_id in sorted(covered - held):
+            rows.append((security_id, 'coverage_without_holder'))
+        return rows
 
     def record_transaction(self, user_id: str, portfolio_id: str, security_id: str, side: str,
                            quantity: str, *, source: str, idempotency_key: str, occurred_at) -> str:
@@ -287,6 +334,57 @@ class Store:
         # Operator-only shared service: capacity counts distinct instruments globally.
         with self.transaction():
             self.db.execute("INSERT OR IGNORE INTO monitoring VALUES (?)",(security_id,))
+
+    def propose_enhancement(self, security_id: str, *, reason: str, operator: str, now,
+                            queue_capacity: int = ADMISSION_QUEUE_CAPACITY) -> str:
+        """Admit a distinct security to enhanced monitoring, queue it, or reject it.
+
+        State machine (no auto-eviction): first MONITORING_CAPACITY distinct securities are
+        'admitted' into the active monitoring set; the next are 'queued' FIFO up to
+        queue_capacity; beyond that the proposal is 'rejected' and nothing is written.
+        Re-proposing an already admitted/queued security is idempotent — it returns the
+        current state and adds no duplicate row. Deterministic integer counts; no Decimal.
+        """
+        from .valuation import utc
+        if not reason.strip() or not str(operator).strip():
+            raise ValueError("Admission reason and operator required")
+        existing = self.db.execute(
+            "SELECT state FROM monitoring_admissions WHERE security_id=?", (security_id,)).fetchone()
+        if existing is not None:
+            return existing[0]
+        proposed_at = utc(now).isoformat()
+        with self.transaction():
+            active = self.db.execute("SELECT COUNT(*) FROM monitoring").fetchone()[0]
+            if active < MONITORING_CAPACITY:
+                self.db.execute("INSERT OR IGNORE INTO monitoring VALUES (?)", (security_id,))
+                self.db.execute(
+                    "INSERT INTO monitoring_admissions(id,security_id,state,reason,operator,position,proposed_at) "
+                    "VALUES (?,?, 'admitted',?,?,NULL,?)",
+                    (str(uuid4()), security_id, reason, operator, proposed_at))
+                return 'admitted'
+            queued = self.db.execute(
+                "SELECT COUNT(*) FROM monitoring_admissions WHERE state='queued'").fetchone()[0]
+            if queued < queue_capacity:
+                position = (self.db.execute(
+                    "SELECT COALESCE(MAX(position),0) FROM monitoring_admissions WHERE state='queued'"
+                ).fetchone()[0]) + 1
+                self.db.execute(
+                    "INSERT INTO monitoring_admissions(id,security_id,state,reason,operator,position,proposed_at) "
+                    "VALUES (?,?, 'queued',?,?,?,?)",
+                    (str(uuid4()), security_id, reason, operator, position, proposed_at))
+                return 'queued'
+        return 'rejected'
+
+    def monitoring_admissions(self):
+        """Return admission rows (security_id, state, reason, position, proposed_at).
+
+        Deterministic ordering: admitted first, then queued FIFO by position, tie-break on
+        the stable security_id. Public monitoring membership; carries no private context.
+        """
+        return self.db.execute(
+            "SELECT security_id,state,reason,position,proposed_at FROM monitoring_admissions "
+            "ORDER BY CASE state WHEN 'admitted' THEN 0 ELSE 1 END, "
+            "position IS NULL DESC, position, security_id").fetchall()
 
     def add_private_memory(self, user_id: str, kind: str, body: str, source: str):
         if not isinstance(user_id, str) or not user_id.strip():

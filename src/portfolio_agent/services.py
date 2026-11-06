@@ -119,3 +119,14 @@ class OperatorService:
     def set_research(self, context, security_id):
         return self._service._run(context,'set_research',lambda _:self._service._store.set_research(
             security_id),operator=True)
+
+    def propose_enhancement(self, context, security_id, *, reason):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        return self._service._run(context,'propose_enhancement',
+            lambda user:self._service._store.propose_enhancement(
+                security_id,reason=reason,operator=user,now=now),operator=True)
+
+    def list_monitoring(self, context):
+        return self._service._run(context,'list_monitoring',
+            lambda _:self._service._store.monitoring_admissions(),operator=True)
