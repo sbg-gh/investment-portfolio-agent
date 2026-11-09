@@ -54,6 +54,7 @@ Real providers, financial accounting, proactive jobs, local inference, conversat
 - [M2 import provenance and reconciliation](docs/M2.md)
 - [M3 proactive service](docs/M3.md)
 - [M4 hybrid chat and local model](docs/M4.md)
+- [M5a memory substrate](docs/M5a.md)
 - [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
 - [Read-only valuation and example](docs/VALUATION.md)
 - [Testing and evaluation](docs/TESTING.md)

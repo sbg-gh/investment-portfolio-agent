@@ -1,0 +1,51 @@
+{
+  "suite": "m5a-memory-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "bc4cad887c985aa28cc4c4b414b66db9788d4c90af8a190c355e843d414b4d13",
+  "total": 7,
+  "passed": 7,
+  "results": [
+    {
+      "id": "m5a-001",
+      "expected": "owner_only",
+      "observed": "owner_only",
+      "passed": true
+    },
+    {
+      "id": "m5a-002",
+      "expected": "filtered",
+      "observed": "filtered",
+      "passed": true
+    },
+    {
+      "id": "m5a-003",
+      "expected": "not_shared",
+      "observed": "not_shared",
+      "passed": true
+    },
+    {
+      "id": "m5a-004",
+      "expected": "ranked",
+      "observed": "ranked",
+      "passed": true
+    },
+    {
+      "id": "m5a-005",
+      "expected": "redacted",
+      "observed": "redacted",
+      "passed": true
+    },
+    {
+      "id": "m5a-006",
+      "expected": "payload_free",
+      "observed": "payload_free",
+      "passed": true
+    },
+    {
+      "id": "m5a-007",
+      "expected": "lineage_retained",
+      "observed": "lineage_retained",
+      "passed": true
+    }
+  ]
+}

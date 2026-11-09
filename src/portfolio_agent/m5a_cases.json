@@ -1,0 +1,37 @@
+[
+  {
+    "id": "m5a-001",
+    "scenario": "scoped_retrieval_excludes_cross_user",
+    "expected": "owner_only"
+  },
+  {
+    "id": "m5a-002",
+    "scenario": "status_expiry_filtered_before_rank",
+    "expected": "filtered"
+  },
+  {
+    "id": "m5a-003",
+    "scenario": "unreviewed_procedure_not_shared",
+    "expected": "not_shared"
+  },
+  {
+    "id": "m5a-004",
+    "scenario": "deterministic_keyword_ranking",
+    "expected": "ranked"
+  },
+  {
+    "id": "m5a-005",
+    "scenario": "run_capture_redacts_secret",
+    "expected": "redacted"
+  },
+  {
+    "id": "m5a-006",
+    "scenario": "trace_stays_payload_free",
+    "expected": "payload_free"
+  },
+  {
+    "id": "m5a-007",
+    "scenario": "deletion_lineage_retained",
+    "expected": "lineage_retained"
+  }
+]

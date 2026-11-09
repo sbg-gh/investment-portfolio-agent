@@ -150,10 +150,67 @@ CREATE TABLE monitoring_state(
 CREATE INDEX job_due ON jobs(status, due_at);
 CREATE INDEX outbox_owner ON notification_outbox(user_id, created_at);
 """
+# M5a is memory SUBSTRATE only: the richer record contract, owner-scoped run capture and
+# scoped keyword retrieval. It makes NO learning/adaptation claim. Extraction, candidate
+# review, held-out evaluation, versioned-procedure promotion/rollback and the ablation
+# harness are M5b and are NOT part of this migration. The EXTENDED scope CHECK keeps an
+# un-reviewed procedural row un-shareable at the DB layer; M1 scope/quarantine stay intact.
+M5A_MEMORY_SCHEMA = """
+ALTER TABLE memories ADD COLUMN portfolio_id TEXT REFERENCES portfolios(id);
+ALTER TABLE memories ADD COLUMN payload TEXT;
+ALTER TABLE memories ADD COLUMN source_run_id TEXT;
+ALTER TABLE memories ADD COLUMN evidence_ids TEXT;
+ALTER TABLE memories ADD COLUMN expires_at TEXT;
+ALTER TABLE memories ADD COLUMN confidence TEXT;
+ALTER TABLE memories ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE memories ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE memories ADD COLUMN supersedes TEXT;
+ALTER TABLE memories ADD COLUMN applicable_conditions TEXT;
+ALTER TABLE memories ADD COLUMN review_status TEXT NOT NULL DEFAULT 'unreviewed';
+DROP INDEX memory_owner;
+ALTER TABLE memories RENAME TO memories_v6;
+CREATE TABLE memories(
+ id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id),
+ scope TEXT NOT NULL CHECK(scope IN ('private','public')),
+ kind TEXT NOT NULL CHECK(kind IN ('episodic','semantic','procedural')),
+ body TEXT NOT NULL, source TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ portfolio_id TEXT REFERENCES portfolios(id), payload TEXT,
+ source_run_id TEXT, evidence_ids TEXT, expires_at TEXT, confidence TEXT,
+ status TEXT NOT NULL DEFAULT 'active'
+   CHECK(status IN ('active','superseded','deprecated','deleted')),
+ version INTEGER NOT NULL DEFAULT 1, supersedes TEXT, applicable_conditions TEXT,
+ review_status TEXT NOT NULL DEFAULT 'unreviewed'
+   CHECK(review_status IN ('unreviewed','approved')),
+ CHECK((scope='private' AND user_id IS NOT NULL) OR
+       (scope='public' AND user_id IS NULL AND
+        (kind='semantic' OR (kind='procedural' AND review_status='approved')))));
+INSERT INTO memories(id,user_id,scope,kind,body,source,created_at,portfolio_id,payload,
+ source_run_id,evidence_ids,expires_at,confidence,status,version,supersedes,
+ applicable_conditions,review_status)
+ SELECT id,user_id,scope,kind,body,source,created_at,portfolio_id,payload,
+ source_run_id,evidence_ids,expires_at,confidence,status,version,supersedes,
+ applicable_conditions,review_status FROM memories_v6;
+DROP TABLE memories_v6;
+CREATE INDEX memory_owner ON memories(user_id,scope);
+CREATE INDEX memory_retrieval ON memories(scope,user_id,status);
+CREATE TABLE run_records(
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+ request_id TEXT NOT NULL, task_type TEXT NOT NULL, policy_version TEXT NOT NULL,
+ model_version TEXT, tool_sequence TEXT NOT NULL, observation_timestamps TEXT,
+ outcome TEXT NOT NULL, feedback TEXT, cost TEXT, latency_ms REAL,
+ captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX run_owner ON run_records(user_id,captured_at);
+CREATE TABLE memory_deletions(
+ id TEXT PRIMARY KEY, memory_id TEXT NOT NULL REFERENCES memories(id),
+ previous_status TEXT NOT NULL, reason TEXT NOT NULL, scope TEXT NOT NULL,
+ deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX deletion_lineage ON memory_deletions(memory_id);
+"""
 MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA),
               (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA),
-              (6, M3_PROACTIVE_SCHEMA))
-SCHEMA_VERSION = 6
+              (6, M3_PROACTIVE_SCHEMA), (7, M5A_MEMORY_SCHEMA))
+SCHEMA_VERSION = 7
 
 def statements(script):
     pending = ''

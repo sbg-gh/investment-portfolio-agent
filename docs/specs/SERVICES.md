@@ -16,6 +16,28 @@ The turn assembles a bounded, owner-scoped context (that owner's holdings plus a
 
 The model adapters live in `model.py` (stdlib only): `OpenAICompatibleModel` (urllib `/v1/chat/completions`), `BoundedModel` (concurrency + output-token caps) and the injectable `ScriptedModel`, selected by `ModelConfig.from_env` (`MODEL_ENDPOINT`/`MODEL_NAME`/`MODEL_MAX_CONCURRENCY`/`MODEL_CONTEXT_BUDGET`/`MODEL_MAX_OUTPUT_TOKENS`). No schema was added: `conversation_id` is an opaque echoed token, `request_id` reuses `execution_traces.request_id`, and no conversation message is persisted. See ../M4.md for the full contract and THE CENTRAL SECURITY PROPERTY.
 
+## M5a memory substrate (implemented; substrate only)
+
+`PortfolioService.add_private_memory`-backed `add_memory` keeps the M1 3-arg form and accepts
+the richer M5a contract (portfolio_id, payload, evidence_ids, expires_at, confidence,
+applicable_conditions, source_run_id); a supplied `portfolio_id` is re-authorized and new rows
+default `status='active'`, `version=1`, `review_status='unreviewed'`. `capture_run(context, *,
+task_type, policy_version, tool_sequence, model_version=None, observation_timestamps=None,
+outcome, feedback=None, cost=None, latency_ms=None)` writes ONE owner-scoped `run_records` row
+through `_run`: identity is derived only from the AuthContext (no owner/user_id parameter),
+`redact_capture` strips secrets/PII and reduces `tool_sequence` to names BEFORE the write, and
+the row reuses the payload-free trace `request_id`. `run_records(context)` returns only that
+owner's rows. `retrieve_memories(context, query, *, query_time, kind=None, portfolio_id=None,
+limit=None)` applies ownership and status/expiry filters in SQL BEFORE ranking, then scores a
+deterministic keyword overlap (`KEYWORD_WEIGHT=100`, `TYPE_WEIGHT=10`, `PORTFOLIO_WEIGHT=5`;
+tie-break newer `created_at` then stable `id`) and returns rows with `score`/`matched_tokens`;
+only the owner's private rows plus permitted public facts are ever scored. `delete_memory` and
+`supersede_memory` authorize ownership, update status, write a `memory_deletions` lineage row
+(supersede also increments `version` and sets `supersedes`), and exclude the row from
+retrieval. This is SUBSTRATE ONLY and makes NO learning/adaptation claim; an un-reviewed
+procedure is never retrievable as shared/public, and embeddings are deferred (future vectors
+inherit the same authz + deletion semantics). See ../M5a.md.
+
 ## M3 job and outbox contract (implemented)
 
 `jobs.JobStore` persists job ID, type, trusted `owner_ref` or `public_scope` (XOR), idempotency key, due time, lease expiry, attempt count, status (`pending|leased|done|dead`) and correlation ID. `enqueue(job_type, *, idempotency_key, due_at, correlation_id, owner_ref=None, public_scope=None)` dedups on `(type, idempotency_key)`. `claim_due(now, limit)` claims atomically over `Store.transaction()` (BEGIN IMMEDIATE), setting `status='leased'`, `lease_expires_at = now + LEASE_SECONDS`, `attempts += 1`. `recover_expired(now)` resumes expired leases after a crash; `fail(job_id, now)` re-arms a job immediately (no backoff) or routes it to `dead` once `attempts >= MAX_ATTEMPTS`; `review_queue()` lists dead jobs. Constants: `LEASE_SECONDS=300`, `MAX_ATTEMPTS=3`, `MAX_CLAIM_PER_TICK=8`.

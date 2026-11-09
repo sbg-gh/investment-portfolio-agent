@@ -86,3 +86,47 @@ B. Vendor-neutral OpenAI-compatible adapter selected by env var, stdlib only. `O
 C. No v7 schema and no conversation persistence this slice. `conversation_id` is an opaque client-supplied correlation token echoed back unchanged; the response `request_id` reuses the existing payload-free `execution_traces.request_id`, and the `chat` turn records only a metadata-only trace (operation/outcome/policy version/request id/timing). Persisting conversation messages was rejected because it would store private bodies, holdings, symbols or sources, which AGENTS.md forbids by default and the contract does not require.
 
 These are implementation choices, not additional claims about the unavailable prior conversation. The M4 fixtures (`m4-chat-baseline-v1`) are deterministic regression gates kept distinct from held-out learning evaluation; passing establishes no adaptation claim (no `learning_improvement` key).
+
+## M5a memory-substrate choices (2026-11-06)
+
+M5 is SPLIT. M5a delivers the durable, privacy-preserving memory SUBSTRATE and scoped
+retrieval only; it makes NO learning/adaptation claim. Extraction, the
+candidate→review→held-out-evaluation→approved→active→deprecated promotion lifecycle,
+versioned-procedure activation/rollback and the ablation harness are M5b. Four decisions were
+settled before implementation:
+
+1. M5-split. M5a is substrate-only (record contract, capture, scoped retrieval, deletion
+   lineage). M5b owns extraction, promotion/rollback and the held-out improvement gate. The
+   MEMORY.md held-out gate is explicitly NOT met by M5a; passing the deterministic
+   `m5a-memory-baseline-v1` fixtures establishes no adaptation claim (no `learning_improvement`
+   key). Retrieving a prior note is not behavioral learning.
+
+2. Unified vs separate memory table. One unified `memories` table is EXTENDED in place at
+   schema v7 (not a parallel table), reconciling with the M1 scope/quarantine model. New
+   nullable/defaulted columns carry the richer contract; the scope CHECK is EXTENDED so a
+   `public` row requires `semantic` OR (`procedural AND review_status='approved'`), making an
+   un-reviewed procedure un-shareable at the DB layer. `execution_traces` gains ZERO columns
+   (M1 payload-free guarantee literally unchanged); run records go to a separate owner-scoped
+   `run_records` table correlated by `request_id`, and deletion lineage to `memory_deletions`.
+   A parallel memory table was rejected because it would duplicate the M1 scope/quarantine
+   constraints and split authorization across two code paths.
+
+3. Keyword-only retrieval. Scoped retrieval filters ownership and status/expiry in SQL BEFORE
+   ranking, then scores a deterministic keyword overlap (`KEYWORD_WEIGHT=100`,
+   `TYPE_WEIGHT=10`, `PORTFOLIO_WEIGHT=5`; tie-break newer `created_at` then stable `id`).
+   Embeddings/vectors are deferred until a benchmark demonstrates benefit; the forward
+   constraint is that any future vectors inherit the SAME authorization and deletion semantics
+   as source rows and are never a bypass. A vector store this slice was rejected as premature
+   and contrary to the local-first, add-embeddings-only-after-benefit guidance.
+
+4. Capture redaction/minimization. A single deterministic, fail-safe `redact_capture` runs at
+   capture BEFORE any `run_records` write; it strips credential/token-like strings,
+   `password=`/`Authorization` fragments, emails, phones and SSN-shaped numbers, truncates
+   free-text feedback to `MAX_FEEDBACK_CHARS`, and reduces `tool_sequence` to tool NAMES only.
+   It operates on captured fields only, not as a classifier for arbitrary private input. A
+   model-based or best-effort redactor was rejected because capture-time privacy must be
+   deterministic and offline.
+
+Identity is derived only from the AuthContext for capture, retrieval, deletion and supersede;
+no caller-supplied owner id is trusted. These are implementation choices, not additional claims
+about the unavailable prior conversation.

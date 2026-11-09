@@ -1,17 +1,32 @@
 """Deterministic domain services. Trusted in-process caller supplies user identity.
 
 Internal persistence API, NOT an authentication boundary. Expose application services only.
+
+The M5a memory additions (richer record contract, owner-scoped run capture, scoped keyword
+retrieval, deletion lineage/supersede) are SUBSTRATE ONLY and make NO learning/adaptation
+claim. Extraction, candidate review, held-out evaluation and versioned-procedure promotion
+or rollback are M5b. Retrieving a prior note or explanation is not behavioral learning.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import json
 import sqlite3
 from typing import Protocol
 from uuid import uuid4
 
 RESEARCH_TARGET = 400
 MONITORING_CAPACITY = 75
+# M5a deterministic keyword-retrieval ranking weights (keyword-only this slice; no vectors).
+KEYWORD_WEIGHT = 100
+TYPE_WEIGHT = 10
+PORTFOLIO_WEIGHT = 5
+
+
+def _descending_text(value: str):
+    """Sort key making ISO-8601 text sort DESC (newer first) under an ascending sort."""
+    return tuple(-ord(ch) for ch in (value or ''))
 # Max distinct securities held pending beyond the active tier before a proposal is rejected.
 ADMISSION_QUEUE_CAPACITY = 25
 SUPPORTED_KINDS = {"stock", "etf", "mutual_fund"}
@@ -386,16 +401,35 @@ class Store:
             "ORDER BY CASE state WHEN 'admitted' THEN 0 ELSE 1 END, "
             "position IS NULL DESC, position, security_id").fetchall()
 
-    def add_private_memory(self, user_id: str, kind: str, body: str, source: str):
+    def add_private_memory(self, user_id: str, kind: str, body: str, source: str, *,
+                           portfolio_id=None, payload=None, evidence_ids=None, expires_at=None,
+                           confidence=None, applicable_conditions=None, source_run_id=None,
+                           version=1, supersedes=None) -> str:
+        """Write one owner-scoped private memory (M1 3-arg form plus the M5a richer contract).
+
+        M5a SUBSTRATE ONLY: storing a richer record makes NO learning/adaptation claim.
+        Identity is the already-authenticated owner; a supplied portfolio_id is re-authorized
+        and never trusted beyond that owner. New rows default status='active', version=1,
+        review_status='unreviewed'. Returns the new memory id.
+        """
         if not isinstance(user_id, str) or not user_id.strip():
             raise PermissionError("Private memory requires a registered owner")
         if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
             raise PermissionError("Private memory requires a registered owner")
         if kind not in {"episodic","semantic","procedural"} or not body or not source:
             raise ValueError("Memory kind, content and provenance required")
+        if portfolio_id is not None:
+            self._authorize(user_id, portfolio_id)
+        memory_id = str(uuid4())
         with self.transaction():
-            self.db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) VALUES (?,?,'private',?,?,?)",
-                            (str(uuid4()),user_id,kind,body,source))
+            self.db.execute(
+                "INSERT INTO memories(id,user_id,scope,kind,body,source,portfolio_id,payload,"
+                "evidence_ids,expires_at,confidence,applicable_conditions,source_run_id,"
+                "status,version,supersedes,review_status) "
+                "VALUES (?,?,'private',?,?,?,?,?,?,?,?,?,?,'active',?,?,'unreviewed')",
+                (memory_id, user_id, kind, body, source, portfolio_id, payload, evidence_ids,
+                 expires_at, confidence, applicable_conditions, source_run_id, version, supersedes))
+        return memory_id
 
     def ingest_public_fact(self, body: str, source: str):
         """Trusted ingestion ONLY: must be independent public data, never user extraction."""
@@ -410,6 +444,162 @@ class Store:
             raise PermissionError("Unknown user")
         return self.db.execute("SELECT kind,body,source FROM memories WHERE (scope='private' AND user_id=?) OR scope='public' ORDER BY rowid",
                                (user_id,)).fetchall()
+
+    def record_run(self, user_id: str, *, request_id: str, task_type: str, policy_version: str,
+                   tool_sequence, model_version=None, observation_timestamps=None,
+                   outcome: str, feedback=None, cost=None, latency_ms=None) -> str:
+        """Capture ONE owner-scoped run record, redacting secrets and minimizing personal
+        content BEFORE the write.
+
+        SUBSTRATE ONLY — recording a run makes NO learning/adaptation claim. Identity is the
+        already-authenticated owner; no caller-supplied owner id is trusted. The tool sequence
+        is reduced to tool NAMES only and free-text feedback is bounded; the private payload is
+        not logged by default. cost is stored as Decimal text; timestamps are UTC ISO-8601.
+        """
+        from .redaction import redact_capture
+        from .valuation import decimal_text
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise PermissionError("Run capture requires a registered owner")
+        if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise PermissionError("Run capture requires a registered owner")
+        if not request_id or not task_type or not policy_version or not outcome:
+            raise ValueError("Run record request/task/policy/outcome required")
+        redacted = redact_capture({'tool_sequence': list(tool_sequence or []),
+                                   'feedback': feedback if isinstance(feedback, str) else ''})
+        tool_names = json.dumps(redacted['tool_sequence'])
+        clean_feedback = redacted['feedback'] if isinstance(feedback, str) else None
+        observations = None if observation_timestamps is None else json.dumps(list(observation_timestamps))
+        cost_text = None if cost is None else decimal_text(Decimal(str(cost)))
+        run_id = str(uuid4())
+        with self.transaction():
+            self.db.execute(
+                "INSERT INTO run_records(id,user_id,request_id,task_type,policy_version,"
+                "model_version,tool_sequence,observation_timestamps,outcome,feedback,cost,latency_ms) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (run_id, user_id, request_id, task_type, policy_version, model_version,
+                 tool_names, observations, outcome, clean_feedback, cost_text, latency_ms))
+        return run_id
+
+    def run_records(self, user_id: str):
+        """Return the authenticated owner's run records only. No cross-user rows ever."""
+        if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise PermissionError("Unknown user")
+        return self.db.execute(
+            "SELECT id,request_id,task_type,policy_version,model_version,tool_sequence,"
+            "outcome,feedback,cost,latency_ms,captured_at FROM run_records "
+            "WHERE user_id=? ORDER BY rowid", (user_id,)).fetchall()
+
+    @staticmethod
+    def _tokenize(text) -> list:
+        """Deterministic token normalization: lowercase, strip punctuation, split on space."""
+        if not isinstance(text, str):
+            return []
+        cleaned = ''.join(ch.lower() if ch.isalnum() else ' ' for ch in text)
+        return [tok for tok in cleaned.split() if tok]
+
+    def retrieve_scoped_memories(self, user_id: str, query: str, *, query_time: str,
+                                 kind=None, portfolio_id=None, limit=None):
+        """Scoped, deterministic keyword retrieval — SUBSTRATE ONLY, no adaptation claim.
+
+        Ownership and status/expiry filters run in SQL BEFORE any scoring, so an excluded
+        row never reaches the ranker: only the owner's private rows plus permitted public
+        facts, with status='active' and not expired at query_time. Ranking is deterministic
+        keyword overlap (no embeddings this slice); ties break on newer created_at then the
+        stable id. Returns dict rows carrying their score and matched_tokens.
+
+        Keyword-only this slice. If vectors are ever added they inherit the SAME authorization
+        and deletion semantics as these source rows (private stays private; deleted/expired
+        stays excluded); they are never a bypass.
+        """
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise PermissionError("Scoped retrieval requires a registered owner")
+        if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise PermissionError("Unknown user")
+        params = [user_id, query_time]
+        sql = ("SELECT id,user_id,scope,kind,body,source,portfolio_id,confidence,"
+               "applicable_conditions,created_at FROM memories "
+               "WHERE ((scope='private' AND user_id=?) OR scope='public') "
+               "AND status='active' AND (expires_at IS NULL OR expires_at>?)")
+        if portfolio_id is not None:
+            # Owner-scoped portfolio filter: never trust a caller id beyond the owner.
+            self._authorize(user_id, portfolio_id)
+            sql += " AND portfolio_id=?"
+            params.append(portfolio_id)
+        if kind is not None:
+            sql += " AND kind=?"
+            params.append(kind)
+        filtered = self.db.execute(sql, params).fetchall()
+        query_tokens = self._tokenize(query)
+        query_set = set(query_tokens)
+        scored = []
+        for (mem_id, _owner, _scope, row_kind, body, _source, row_portfolio,
+             confidence, conditions, created_at) in filtered:
+            row_tokens = set(self._tokenize(body)) | set(self._tokenize(conditions))
+            matched = [tok for tok in query_tokens if tok in row_tokens]
+            keyword_overlap = len(set(matched))
+            score = keyword_overlap * KEYWORD_WEIGHT
+            if kind is not None and row_kind == kind:
+                score += TYPE_WEIGHT
+            if portfolio_id is not None and row_portfolio == portfolio_id:
+                score += PORTFOLIO_WEIGHT
+            # Small bounded confidence term (0 when NULL), never outweighing a keyword match.
+            try:
+                score += min(max(float(confidence or 0), 0.0), 1.0)
+            except (TypeError, ValueError):
+                pass
+            scored.append({'id': mem_id, 'kind': row_kind, 'body': body,
+                           'score': score, 'matched_tokens': sorted(query_set & row_tokens),
+                           'created_at': created_at})
+        scored.sort(key=lambda r: (-r['score'], _descending_text(r['created_at']), r['id']))
+        if limit is not None:
+            scored = scored[:limit]
+        return scored
+
+    def _owned_memory(self, user_id: str, memory_id: str):
+        """Authorize that user_id owns memory_id; return (scope, status) or raise."""
+        row = self.db.execute(
+            "SELECT scope,status,user_id FROM memories WHERE id=?", (memory_id,)).fetchone()
+        if row is None or row[2] != user_id:
+            raise PermissionError("Memory unavailable")
+        return row[0], row[1]
+
+    def delete_memory(self, user_id: str, memory_id: str, *, reason: str):
+        """Soft-delete a memory, retaining deletion lineage — SUBSTRATE ONLY, no learning claim.
+
+        Authorizes ownership first, sets status='deleted' and writes a `memory_deletions` row.
+        The body is retained for lineage but excluded from retrieval. A deleted row is never
+        resurrected.
+        """
+        if not reason or not reason.strip():
+            raise ValueError("Deletion reason required")
+        with self.transaction():
+            scope, status = self._owned_memory(user_id, memory_id)
+            self.db.execute("UPDATE memories SET status='deleted' WHERE id=?", (memory_id,))
+            self.db.execute(
+                "INSERT INTO memory_deletions(id,memory_id,previous_status,reason,scope) "
+                "VALUES (?,?,?,?,?)", (str(uuid4()), memory_id, status, reason, scope))
+
+    def supersede_memory(self, user_id: str, memory_id: str, *, reason: str, kind: str,
+                         body: str, source: str, **new_fields) -> str:
+        """Supersede a memory with a replacement, retaining lineage — SUBSTRATE ONLY.
+
+        Authorizes ownership first, marks the old row status='superseded', writes lineage, and
+        inserts the replacement with incremented version and supersedes set. Makes NO
+        learning/adaptation claim; this is provenance-preserving record maintenance.
+        """
+        if not reason or not reason.strip():
+            raise ValueError("Supersede reason required")
+        with self.transaction():
+            scope, status = self._owned_memory(user_id, memory_id)
+            old_version = self.db.execute(
+                "SELECT version FROM memories WHERE id=?", (memory_id,)).fetchone()[0]
+            self.db.execute("UPDATE memories SET status='superseded' WHERE id=?", (memory_id,))
+            self.db.execute(
+                "INSERT INTO memory_deletions(id,memory_id,previous_status,reason,scope) "
+                "VALUES (?,?,?,?,?)", (str(uuid4()), memory_id, status, reason, scope))
+            return self.add_private_memory(user_id, kind, body, source,
+                                           version=old_version + 1, supersedes=memory_id,
+                                           **new_fields)
 
     def record_paper_order(self, user_id: str, portfolio_id: str, security_id: str,
                            quantity: str, reference_price: str, mode: str = "read_only") -> str:

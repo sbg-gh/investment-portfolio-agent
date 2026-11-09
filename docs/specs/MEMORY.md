@@ -4,26 +4,49 @@
 
 A shared memory service enforces scope before retrieval or prompt assembly. Private portfolio facts, goals, chats, execution traces, preferences and outcomes stay user-scoped. Public facts are independently sourced market knowledge. Generic procedures may be shared only after review demonstrates that no private examples, holdings, user identifiers or preferences survive.
 
-Episodic memory records what happened in a run. Semantic memory records supported facts/preferences with provenance. Procedural memory records versioned strategies for selecting tools and handling situations. M1 stores these labels and retrieves explicitly scoped rows; it does not extract, rank, summarize or automatically execute procedures. Public ingestion is trusted operator-only and does not sanitize arbitrary private input.
+Episodic memory records what happened in a run. Semantic memory records supported facts/preferences with provenance. Procedural memory records versioned strategies for selecting tools and handling situations. M1 stores these labels and retrieves explicitly scoped rows. M5a adds the richer record contract, owner-scoped run capture and deterministic keyword retrieval that ranks scoped rows (SUBSTRATE ONLY — no learning claim); it still does NOT extract, review, promote or automatically execute procedures (that is M5b). Public ingestion is trusted operator-only and does not sanitize arbitrary private input.
 
-## Planned record contract
+## Record contract (M5a implemented; substrate only)
 
-Memory ID, scope, owner, optional portfolio, type, payload, source run/evidence IDs, creation and expiry times, confidence, status, version, supersedes, applicable conditions and deletion lineage. Run records include request/task type, policy/model version, tool sequence, observation timestamps, outcome, feedback and cost/latency. Redact secrets and minimize personal content at capture.
+Implemented in M5a as SUBSTRATE ONLY — storing these records makes NO learning/adaptation
+claim. One unified `memories` table is extended in place at schema v7 with: memory ID, scope,
+owner, optional portfolio, type (`episodic|semantic|procedural`), payload, source run/evidence
+IDs, creation and expiry times, confidence, status (`active|superseded|deprecated|deleted`),
+version, supersedes, applicable conditions and `review_status`; deletion lineage lives in
+`memory_deletions`. Owner-scoped run records live in a separate `run_records` table with
+request/task type, policy/model version, tool sequence, observation timestamps, outcome,
+feedback and cost/latency, correlated to the payload-free execution trace by `request_id`.
+Secrets are redacted and personal content minimized at capture by a deterministic fail-safe
+pass (tool sequence reduced to names; feedback truncated), BEFORE any write.
 
-Retrieval must apply ownership and status/expiry filters before ranking. Start with SQLite keyword retrieval and explicit metadata; add embeddings only after a benchmark demonstrates benefit. Keep vectors under the same authorization and deletion semantics as source records. Conflicting facts retain provenance and resolution state; never silently overwrite authoritative evidence with model inference.
+Retrieval (M5a implemented) applies ownership and status/expiry filters BEFORE ranking, in
+SQL, so excluded rows never reach the ranker. It uses SQLite KEYWORD retrieval and explicit
+metadata only this slice (`KEYWORD_WEIGHT=100`, `TYPE_WEIGHT=10`, `PORTFOLIO_WEIGHT=5`;
+tie-break newer `created_at` then stable `id`). Embeddings are added only after a benchmark
+demonstrates benefit; any future vectors stay under the SAME authorization and deletion
+semantics as source records. Conflicting facts retain provenance and resolution state through
+source/evidence ids and the `superseded` status; model inference never silently overwrites
+authoritative evidence. The extended scope CHECK keeps an un-reviewed procedure un-shareable at
+the DB layer, so it is never retrievable as shared/public — automatic promotion/sharing is M5b.
 
-## Promotion lifecycle
+## Promotion lifecycle (M5b — planned)
 
-Observed run → candidate lesson → evidence/contradiction review → held-out evaluation → approved version → active → deprecated/rolled back. A successful single run is insufficient for global promotion. User feedback is evidence, not a guarantee of correctness. Financial market outcomes are confounded; prioritize measurable task quality and calibrated uncertainty over short-term returns as a learning signal.
+This lifecycle is NOT implemented in M5a and is out of scope for the substrate slice. M5a
+stores the procedural type and its `review_status` but implements no automatic promotion,
+activation or rollback. Observed run → candidate lesson → evidence/contradiction review →
+held-out evaluation → approved version → active → deprecated/rolled back. A successful single run is insufficient for global promotion. User feedback is evidence, not a guarantee of correctness. Financial market outcomes are confounded; prioritize measurable task quality and calibrated uncertainty over short-term returns as a learning signal.
 
 For example, a procedure may learn to request a dated NAV adapter when handling a mutual fund, replacing repeated use of an intraday quote tool. Demonstrate the changed tool sequence and lower stale-data error rate; merely retrieving a previous explanation is not behavioral adaptation.
 
-## Evaluation plan (M5)
+## Evaluation plan (M5b — planned held-out gate)
 
-Freeze model, tools and dataset; compare no-memory, retrieval-only and approved-procedure variants on identical held-out cases. Split by time and task family, prohibit test cases from entering memory, and repeat runs with recorded seeds/settings. Include contaminated documents and adversarial cross-user requests.
+This held-out evaluation is M5b and is NOT met by M5a. The M5a `m5a-memory-baseline-v1` suite
+is a deterministic scope/capture/retrieval correctness gate kept DISTINCT from this held-out
+plan; it carries no `learning_improvement` key and establishes no adaptation claim. Freeze
+model, tools and dataset; compare no-memory, retrieval-only and approved-procedure variants on identical held-out cases. Split by time and task family, prohibit test cases from entering memory, and repeat runs with recorded seeds/settings. Include contaminated documents and adversarial cross-user requests.
 
 Measure task success, evidence correctness, unsupported claims, stale-price misuse, tool-choice error, latency, token use, duplicate alerts and unauthorized disclosure. Include regression tests for all established scope invariants. Report per-task results and paired uncertainty intervals; do not claim improvement from aggregate anecdotes.
 
 Initial proposed gate: zero unauthorized disclosures or live actions; no loss on deterministic accounting cases; improved primary task-success metric on held-out cases with a paired confidence interval excluding zero, within a predeclared local latency/resource budget. If the dataset is too small, report inconclusive and keep the candidate inactive. Revert on regressions and retain evaluation lineage. Set concrete latency budgets after M4 benchmarks on the target Mac.
 
-M1 now supplies metadata-only scoped execution traces and an eight-case deterministic safety baseline. These are public regression fixtures, not evidence of learned improvement. See ../TESTING.md.
+M1 now supplies metadata-only scoped execution traces and an eight-case deterministic safety baseline. M5a adds owner-scoped run records (tool sequences, policy/model versions, redacted feedback) alongside those payload-free traces, plus the sixth `m5a-memory-baseline-v1` suite. These are all public regression fixtures, not evidence of learned improvement. See ../M5a.md and ../TESTING.md.
