@@ -16,6 +16,8 @@ import sqlite3
 from typing import Protocol
 from uuid import uuid4
 
+from .leakage import assert_no_held_out
+
 RESEARCH_TARGET = 400
 MONITORING_CAPACITY = 75
 # M5a deterministic keyword-retrieval ranking weights (keyword-only this slice; no vectors).
@@ -418,6 +420,7 @@ class Store:
             raise PermissionError("Private memory requires a registered owner")
         if kind not in {"episodic","semantic","procedural"} or not body or not source:
             raise ValueError("Memory kind, content and provenance required")
+        assert_no_held_out(body, source, payload, applicable_conditions, evidence_ids)
         if portfolio_id is not None:
             self._authorize(user_id, portfolio_id)
         memory_id = str(uuid4())
@@ -435,6 +438,7 @@ class Store:
         """Trusted ingestion ONLY: must be independent public data, never user extraction."""
         if not body or not source:
             raise ValueError("Content and public provenance required")
+        assert_no_held_out(body, source)
         with self.transaction():
             self.db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) VALUES (?,NULL,'public','semantic',?,?)",
                             (str(uuid4()),body,source))
@@ -458,6 +462,8 @@ class Store:
         """
         from .redaction import redact_capture
         from .valuation import decimal_text
+        assert_no_held_out(request_id, task_type, policy_version, model_version, feedback,
+                           *(t for t in (tool_sequence or []) if isinstance(t, str)))
         if not isinstance(user_id, str) or not user_id.strip():
             raise PermissionError("Run capture requires a registered owner")
         if not self.db.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
