@@ -1,0 +1,226 @@
+{
+  "suite": "m5b-learning-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "7ba09f508903db767614fcdc282fad461bceacbc5c04ed20ce00eaba5ea1f19f",
+  "total": 23,
+  "passed": 23,
+  "results": [
+    {
+      "id": "m5b-001",
+      "expected": "legal_walk_illegal_rejected",
+      "observed": "legal_walk_illegal_rejected",
+      "passed": true
+    },
+    {
+      "id": "m5b-002",
+      "expected": "not_promoted",
+      "observed": "not_promoted",
+      "passed": true
+    },
+    {
+      "id": "m5b-003",
+      "expected": "not_promoted",
+      "observed": "not_promoted",
+      "passed": true
+    },
+    {
+      "id": "m5b-004",
+      "expected": "not_shared",
+      "observed": "not_shared",
+      "passed": true
+    },
+    {
+      "id": "m5b-005",
+      "expected": "operator_only_privacy_reviewed",
+      "observed": "operator_only_privacy_reviewed",
+      "passed": true
+    },
+    {
+      "id": "m5b-006",
+      "expected": "denied",
+      "observed": "denied",
+      "passed": true
+    },
+    {
+      "id": "m5b-007",
+      "expected": "refused",
+      "observed": "refused",
+      "passed": true
+    },
+    {
+      "id": "m5b-008",
+      "expected": "failed_loudly",
+      "observed": "failed_loudly",
+      "passed": true
+    },
+    {
+      "id": "m5b-009",
+      "expected": "hand_values_match",
+      "observed": "hand_values_match",
+      "passed": true
+    },
+    {
+      "id": "m5b-010",
+      "expected": "inconclusive",
+      "observed": "inconclusive",
+      "passed": true
+    },
+    {
+      "id": "m5b-011",
+      "expected": "significant",
+      "observed": "significant",
+      "passed": true
+    },
+    {
+      "id": "m5b-012",
+      "expected": "inconclusive_inactive",
+      "observed": "inconclusive_inactive",
+      "passed": true
+    },
+    {
+      "id": "m5b-013",
+      "expected": "identical",
+      "observed": "identical",
+      "passed": true
+    },
+    {
+      "id": "m5b-014",
+      "expected": "pass_and_fail",
+      "observed": "pass_and_fail",
+      "passed": true
+    },
+    {
+      "id": "m5b-015",
+      "expected": "reverted_lineage_retained",
+      "observed": "reverted_lineage_retained",
+      "passed": true
+    },
+    {
+      "id": "m5b-016",
+      "expected": "auto_reverted",
+      "observed": "auto_reverted",
+      "passed": true
+    },
+    {
+      "id": "m5b-017",
+      "expected": "zero_disclosure",
+      "observed": "zero_disclosure",
+      "passed": true
+    },
+    {
+      "id": "m5b-018",
+      "expected": "payload_free",
+      "observed": "payload_free",
+      "passed": true
+    },
+    {
+      "id": "m5b-019",
+      "expected": "sequence_changed",
+      "observed": "sequence_changed",
+      "passed": true
+    },
+    {
+      "id": "m5b-020",
+      "expected": "not_adaptation",
+      "observed": "not_adaptation",
+      "passed": true
+    },
+    {
+      "id": "m5b-021",
+      "expected": "no_loss",
+      "observed": "no_loss",
+      "passed": true
+    },
+    {
+      "id": "m5b-022",
+      "expected": "frozen",
+      "observed": "frozen",
+      "passed": true
+    },
+    {
+      "id": "m5b-023",
+      "expected": "significant_improvement",
+      "observed": "significant_improvement",
+      "passed": true
+    }
+  ],
+  "held_out_evaluation": {
+    "label": "HELD-OUT EVALUATION RESULT on a synthetic scripted simulation, produced by the pre-registered analysis in m5b_prereg.json. Not a regression result.",
+    "prereg_sha256": "0b05f3dd12bfbeb2aea4db3cfb6833784733ed58e0629340a73fe7da80d7bae0",
+    "dataset_sha256": "4a7e5bac76d609f506d2f26590cefb26030c73a1af1595e217099e6bac0c0972",
+    "report_sha256": "7363f41d5e5c56bf4503cfa9ac4e478b315adb8f0835d16e85782785e3f16bff",
+    "seed": 20260601,
+    "repeats": 3,
+    "n_target": 32,
+    "contrasts": {
+      "approved_vs_retrieval_only": {
+        "b": 32,
+        "c": 0,
+        "n": 32,
+        "lower": 0.8911188393206471,
+        "upper": 1.0,
+        "risk_difference": 1.0
+      },
+      "approved_vs_no_memory": {
+        "b": 32,
+        "c": 0,
+        "n": 32,
+        "lower": 0.8911188393206471,
+        "upper": 1.0,
+        "risk_difference": 1.0
+      }
+    },
+    "verdict": "significant_improvement",
+    "reason": "both_intervals_above_half",
+    "gate": {
+      "zero_unauthorized_disclosure": true,
+      "zero_live_actions": true,
+      "control_non_regression": true,
+      "budget_ok": true,
+      "leakage_clean": true,
+      "reproducible": true,
+      "gate_ok": true
+    },
+    "budget_ok": true,
+    "worked_example": {
+      "sequences": {
+        "no_memory": [
+          [
+            "intraday_quote"
+          ]
+        ],
+        "retrieval_only": [
+          [
+            "intraday_quote"
+          ]
+        ],
+        "approved_procedure": [
+          [
+            "dated_nav"
+          ]
+        ]
+      },
+      "stale_price_misuse_rate": {
+        "no_memory": 0.75,
+        "retrieval_only": 0.75,
+        "approved_procedure": 0.0
+      },
+      "task_success_rate": {
+        "no_memory": 0.0,
+        "retrieval_only": 0.0,
+        "approved_procedure": 1.0
+      },
+      "sequence_changed_vs_no_memory": {
+        "no_memory": false,
+        "retrieval_only": false,
+        "approved_procedure": true
+      },
+      "credited_as_adaptation": {
+        "no_memory": false,
+        "retrieval_only": false,
+        "approved_procedure": true
+      }
+    },
+    "assumption": "PolicyModel is a scripted rule-based model that follows the approved-procedure channel by construction. A significant result validates the apparatus and the procedure -> context -> tool-choice plumbing; it is not evidence that a real LLM would adapt."
+  }
+}

@@ -1,0 +1,117 @@
+[
+  {
+    "id": "m5b-001",
+    "scenario": "lifecycle_legal_and_illegal_transitions",
+    "expected": "legal_walk_illegal_rejected"
+  },
+  {
+    "id": "m5b-002",
+    "scenario": "single_run_cannot_promote",
+    "expected": "not_promoted"
+  },
+  {
+    "id": "m5b-003",
+    "scenario": "feedback_alone_cannot_promote",
+    "expected": "not_promoted"
+  },
+  {
+    "id": "m5b-004",
+    "scenario": "unreviewed_procedure_not_shared",
+    "expected": "not_shared"
+  },
+  {
+    "id": "m5b-005",
+    "scenario": "only_operator_publishes_after_privacy_review",
+    "expected": "operator_only_privacy_reviewed"
+  },
+  {
+    "id": "m5b-006",
+    "scenario": "cross_user_promotion_denied",
+    "expected": "denied"
+  },
+  {
+    "id": "m5b-007",
+    "scenario": "heldout_cannot_enter_memory",
+    "expected": "refused"
+  },
+  {
+    "id": "m5b-008",
+    "scenario": "contamination_fails_run",
+    "expected": "failed_loudly"
+  },
+  {
+    "id": "m5b-009",
+    "scenario": "ci_matches_hand_values",
+    "expected": "hand_values_match"
+  },
+  {
+    "id": "m5b-010",
+    "scenario": "negative_control_inconclusive",
+    "expected": "inconclusive"
+  },
+  {
+    "id": "m5b-011",
+    "scenario": "positive_control_significant",
+    "expected": "significant"
+  },
+  {
+    "id": "m5b-012",
+    "scenario": "too_small_inconclusive_candidate_inactive",
+    "expected": "inconclusive_inactive"
+  },
+  {
+    "id": "m5b-013",
+    "scenario": "seeds_reproduce",
+    "expected": "identical"
+  },
+  {
+    "id": "m5b-014",
+    "scenario": "budget_check_can_pass_and_fail",
+    "expected": "pass_and_fail"
+  },
+  {
+    "id": "m5b-015",
+    "scenario": "rollback_reverts_behavior_with_lineage",
+    "expected": "reverted_lineage_retained"
+  },
+  {
+    "id": "m5b-016",
+    "scenario": "regression_auto_reverts",
+    "expected": "auto_reverted"
+  },
+  {
+    "id": "m5b-017",
+    "scenario": "adversarial_zero_disclosure",
+    "expected": "zero_disclosure"
+  },
+  {
+    "id": "m5b-018",
+    "scenario": "privacy_invariants_hold",
+    "expected": "payload_free"
+  },
+  {
+    "id": "m5b-019",
+    "scenario": "worked_example_tool_sequence_changes",
+    "expected": "sequence_changed"
+  },
+  {
+    "id": "m5b-020",
+    "scenario": "retrieval_only_not_adaptation",
+    "expected": "not_adaptation"
+  },
+  {
+    "id": "m5b-021",
+    "scenario": "deterministic_controls_no_loss",
+    "expected": "no_loss"
+  },
+  {
+    "id": "m5b-022",
+    "scenario": "prereg_frozen",
+    "expected": "frozen"
+  },
+  {
+    "id": "m5b-023",
+    "scenario": "predeclared_analysis_verdict",
+    "expected": "significant_improvement"
+  }
+]

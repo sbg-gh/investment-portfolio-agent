@@ -130,3 +130,13 @@ settled before implementation:
 Identity is derived only from the AuthContext for capture, retrieval, deletion and supersede;
 no caller-supplied owner id is trusted. These are implementation choices, not additional claims
 about the unavailable prior conversation.
+## M5b experience-learning choices (2026-11-07)
+These were fixed in the plan and the pre-registration BEFORE any result existed.
+1. Deterministic, rule-based extraction. Candidates come from the owner's own run records only (stale-data runs of tool A vs successful runs of tool B within `valuation:<kind>`); feedback text is never read; the output is an unreviewed procedural memory. Model-assisted extraction is deferred and its output would be untrusted. A model extractor was rejected for this slice because it cannot be reproduced offline.
+2. Pre-registered analysis. `m5b_prereg.json` (seed 20260601, 3 repeats, alpha 0.05, n_min 20, n_target 32, family counts, lag rule `i % 4 days`, primary metric, decision rule, budget) was committed alone and first; its sha256 is frozen by a test and recorded in the baseline. Changing any value to move a verdict is forbidden.
+3. Exact paired interval. Exact two-sided Clopper-Pearson on b/(b+c) (exact McNemar), stdlib, no resampling, no seed. Chosen for tiny n over a normal or bootstrap interval. Bootstrap is used only for DESCRIPTIVE continuous metrics.
+4. Honest inconclusive is valid. `inconclusive` (n < n_min, no discordant pairs, or an interval containing 0.5) keeps the candidate inactive and is an acceptable passing outcome. The harness is shown to return significant_improvement, inconclusive and significant_regression on controls, so it is not hard-wired.
+5. Latency/resource budget anchored on the M4 benchmark with 1.25 headroom: p50 <= 791 ms, p95 <= 5970 ms, RSS growth <= 34.5 MB, prompt <= 4096 tokens. Reports record only `budget_ok`.
+6. One append-only v8 table. `procedure_events` (BEFORE UPDATE/DELETE abort) holds lifecycle state, actor, trigger and a numeric evaluation digest. Reusing M5a `memories.status`/`memory_deletions` could not express the states or lineage.
+7. Simulation fairness. `PolicyModel` switches to `dated_nav` only via the system-assembled `[APPROVED_PROCEDURES]` channel; `[MEMORY]` is untrusted data and never changes tool choice. This is an assumption of the simulation, stated in docs: the significant verdict validates the apparatus and plumbing, not real-LLM adaptation.
+8. The `held_out_evaluation` block exists only in the M5b report; m1..m5a stay regression gates. The M5 gate is recorded as met on the synthetic simulation only.

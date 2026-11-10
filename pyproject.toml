@@ -16,4 +16,4 @@ portfolio-agent = "portfolio_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-portfolio_agent = ["eval_cases.json", "valuation_cases.json", "import_cases.json", "m2_cases.json", "m3_cases.json", "m4_cases.json", "m5a_cases.json", "m5b_prereg.json"]
+portfolio_agent = ["eval_cases.json", "valuation_cases.json", "import_cases.json", "m2_cases.json", "m3_cases.json", "m4_cases.json", "m5a_cases.json", "m5b_cases.json", "m5b_prereg.json"]

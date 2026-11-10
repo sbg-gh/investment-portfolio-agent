@@ -29,18 +29,16 @@ source/evidence ids and the `superseded` status; model inference never silently 
 authoritative evidence. The extended scope CHECK keeps an un-reviewed procedure un-shareable at
 the DB layer, so it is never retrievable as shared/public — automatic promotion/sharing is M5b.
 
-## Promotion lifecycle (M5b — planned)
+## Promotion lifecycle (M5b — implemented)
 
-This lifecycle is NOT implemented in M5a and is out of scope for the substrate slice. M5a
-stores the procedural type and its `review_status` but implements no automatic promotion,
-activation or rollback. Observed run → candidate lesson → evidence/contradiction review →
+Implemented in M5b (`procedures.py`, schema v8 append-only `procedure_events`; see ../M5b.md). M5a stored the procedural type and `review_status`; M5b adds deterministic extraction, the explicit transition table, versioned activation, manual and regression rollback with retained lineage, and operator-only privacy-reviewed publish. The sequence is: Observed run → candidate lesson → evidence/contradiction review →
 held-out evaluation → approved version → active → deprecated/rolled back. A successful single run is insufficient for global promotion. User feedback is evidence, not a guarantee of correctness. Financial market outcomes are confounded; prioritize measurable task quality and calibrated uncertainty over short-term returns as a learning signal.
 
 For example, a procedure may learn to request a dated NAV adapter when handling a mutual fund, replacing repeated use of an intraday quote tool. Demonstrate the changed tool sequence and lower stale-data error rate; merely retrieving a previous explanation is not behavioral adaptation.
 
-## Evaluation plan (M5b — planned held-out gate)
+## Evaluation plan (M5b — implemented held-out gate)
 
-This held-out evaluation is M5b and is NOT met by M5a. The M5a `m5a-memory-baseline-v1` suite
+Implemented in M5b as the pre-registered three-variant harness (`m5b_harness.py`, `m5b_prereg.json`, seventh suite `m5b-learning-baseline-v1`) with exact paired Clopper-Pearson intervals, an honest `inconclusive` outcome and a numeric budget. The recorded verdict is `significant_improvement` on the synthetic scripted simulation ONLY (n=32, b=32, c=0, interval [0.8911, 1.0]); it validates the apparatus and plumbing, not real-LLM adaptation (see ../M5b.md). The M5a `m5a-memory-baseline-v1` suite
 is a deterministic scope/capture/retrieval correctness gate kept DISTINCT from this held-out
 plan; it carries no `learning_improvement` key and establishes no adaptation claim. Freeze
 model, tools and dataset; compare no-memory, retrieval-only and approved-procedure variants on identical held-out cases. Split by time and task family, prohibit test cases from entering memory, and repeat runs with recorded seeds/settings. Include contaminated documents and adversarial cross-user requests.
