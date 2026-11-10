@@ -55,6 +55,25 @@ class Authenticator:
         return AuthContext(user_id,credential_id,request_id,expiry,
                            self._signature(user_id,credential_id,request_id,expiry))
 
+    def reauthenticate(self, credential_id):
+        """Mint a fresh short-lived context for a live credential; return (context, role).
+
+        A web session stores only the credential id (never the bearer token). Every request
+        re-checks revocation and expiry here, so revoking a credential ends its sessions.
+        """
+        if not isinstance(credential_id,str) or not credential_id or len(credential_id)>128:
+            raise PermissionError('Invalid credentials')
+        row = self._store.db.execute(
+            'SELECT user_id,role,expires_at FROM credentials WHERE id=? AND revoked=0 AND expires_at>?',
+            (credential_id,self._clock())).fetchone()
+        if row is None:
+            raise PermissionError('Invalid credentials')
+        user_id,role,expiry = row
+        request_id = str(uuid4())
+        expiry = min(expiry,self._clock()+300)
+        return (AuthContext(user_id,credential_id,request_id,expiry,
+                            self._signature(user_id,credential_id,request_id,expiry)),role)
+
     def require(self, context, *, operator=False):
         if not isinstance(context,AuthContext):
             raise PermissionError('Authenticated context required')

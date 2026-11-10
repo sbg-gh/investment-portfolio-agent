@@ -2,7 +2,12 @@
 from time import perf_counter
 from uuid import uuid4
 
+import re
+
 POLICY_VERSION = 'm1-v1'
+OPERATOR_ATTESTED = 'operator-attested'
+_SECURITY_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,63}')
+_SYMBOL = re.compile(r'[A-Z0-9][A-Z0-9.-]{0,14}')
 
 class PortfolioService:
     def __init__(self, store, authenticator, validator):
@@ -40,6 +45,33 @@ class PortfolioService:
 
     def create_portfolio(self, context, name):
         return self._run(context,'create_portfolio',lambda user:self._store.create_portfolio(user,name))
+
+    def portfolios(self, context):
+        """The caller's own portfolios only (owner taken from the AuthContext)."""
+        return self._run(context,'portfolios',lambda user:[
+            {'id':row[0],'name':row[1]} for row in self._store.db.execute(
+                'SELECT id,name FROM portfolios WHERE user_id=? ORDER BY rowid',(user,))])
+
+    def securities(self, context, security_ids):
+        """Public identity (symbol, kind) for the given ids; unknown ids are omitted."""
+        if (not isinstance(security_ids,(list,tuple)) or len(security_ids)>500
+                or not all(isinstance(item,str) for item in security_ids)):
+            raise ValueError('A list of at most 500 security ids is required')
+        def read(_):
+            found = []
+            for security_id in sorted(set(security_ids)):
+                row = self._store.db.execute('SELECT id,symbol,kind FROM securities WHERE id=?',
+                                             (security_id,)).fetchone()
+                if row is not None:
+                    found.append({'security_id':row[0],'symbol':row[1],'kind':row[2]})
+            return found
+        return self._run(context,'securities',read)
+
+    def observation_sources(self, context):
+        """Distinct observation source labels (public market metadata, no private data)."""
+        return self._run(context,'observation_sources',lambda _:[
+            row[0] for row in self._store.db.execute(
+                'SELECT DISTINCT source FROM market_observations ORDER BY source')])
 
     def holdings(self, context, portfolio_id):
         return self._run(context,'holdings',lambda user:self._store.holdings(user,portfolio_id))
@@ -254,6 +286,23 @@ class OperatorService:
         from .valuation import ingest_observation
         return self._service._run(context,'ingest_observation',lambda _:ingest_observation(
             self._service._store,observation),operator=True)
+
+    def register_instrument(self, context, *, security_id, symbol, kind):
+        """Operator-ATTESTED registration of a US instrument (no authoritative provider exists).
+
+        Provenance is recorded as 'operator-attested'; this does not validate the instrument
+        against a market-data authority and must not be presented as such.
+        """
+        from .core import ValidatedSecurity
+        if (not isinstance(security_id,str) or not _SECURITY_ID.fullmatch(security_id)
+                or not isinstance(symbol,str) or not _SYMBOL.fullmatch(symbol.strip().upper())
+                or not isinstance(kind,str)):
+            raise ValueError('Invalid instrument identity')
+        security = ValidatedSecurity(security_id,symbol.strip().upper(),kind,'US',OPERATOR_ATTESTED)
+        def register(_):
+            self._service._store.register(security)
+            return security.security_id
+        return self._service._run(context,'register_instrument',register,operator=True)
 
     def ingest_public_fact(self, context, body, source):
         return self._service._run(context,'public_fact',lambda _:self._service._store.ingest_public_fact(
