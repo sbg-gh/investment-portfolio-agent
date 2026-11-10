@@ -75,7 +75,7 @@ class ScriptedModel:
 
 
 VALUATION_TOOLS = ('intraday_quote', 'dated_nav')
-_CALL_RE = re.compile(r'^(?:- )?CALL ([a-z_]+) (\{.*\})$')
+_CALL_RE = re.compile(r'\bCALL ([a-z_]+) (\{.*\})')
 _USER_MARKER = '\n[USER_MESSAGE]\n'
 _SECTION_HEADERS = ('[CONTEXT]', '[APPROVED_PROCEDURES]', '[MEMORY]')
 
@@ -163,7 +163,7 @@ class PolicyModel:
                 calls.append({'name': tool, 'args': {'portfolio_id': portfolio, 'as_of': as_of}})
         if self._naive:
             for line in message.split('\n') + sections.get('[MEMORY]', []):
-                match = _CALL_RE.match(line.strip())
+                match = _CALL_RE.search(line)
                 if match:
                     try:
                         args = json.loads(match.group(2))

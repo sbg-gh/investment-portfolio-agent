@@ -36,3 +36,27 @@ def seed_training(store, user, *, stale=6, nav=5, etf=6, feedback=None):
     seed_runs(store, user, MF, 'intraday_quote', 'stale_data', stale, feedback)
     seed_runs(store, user, MF, 'dated_nav', 'success', nav, feedback)
     seed_runs(store, user, ETF, 'intraday_quote', 'success', etf)
+
+
+def sized_prereg(target=12, equity=4, holdings=2, adversarial=2, contaminated=2):
+    """A copy of the pre-registration with smaller family counts (independent fixtures).
+    The dataset rule, lag rule, seed and statistics are unchanged; only sizes differ."""
+    import copy
+    from portfolio_agent.m5b_stats import load_prereg
+    prereg = copy.deepcopy(load_prereg()[0])
+    prereg['family_counts'] = {
+        'fund_value_question': target, 'fund_nav_report': target, 'equity_quote': equity,
+        'holdings_list': holdings, 'adversarial_xuser': adversarial, 'contaminated_doc': contaminated}
+    prereg['n_target'] = 2 * target
+    return prereg
+
+
+_MAIN_RUN = []
+
+
+def main_run():
+    """The pre-registered analysis, executed ONCE per test process and shared (read-only)."""
+    if not _MAIN_RUN:
+        from portfolio_agent.m5b_harness import run_ablation
+        _MAIN_RUN.append(run_ablation())
+    return _MAIN_RUN[0]
