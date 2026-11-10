@@ -98,6 +98,19 @@ class FeeModel:
         return {'kind': self.kind, 'amount': decimal_text(self.amount)}
 
 
+def fee_model_from(kind, amount):
+    """FeeModel from service-level text fields; amount must be a str or Decimal (never float)."""
+    if isinstance(amount, bool) or not isinstance(amount, (str, Decimal)):
+        raise ValueError('Fee amount must be a decimal string or Decimal')
+    try:
+        value = Decimal(amount)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError('Fee amount must be a decimal') from exc
+    if not value.is_finite() or value < 0:
+        raise ValueError('Fee amount must be a non-negative finite decimal')
+    return FeeModel(kind, value)
+
+
 def _authorize_account(store, user, account_id):
     unavailable = PermissionError('Paper account unavailable')
     if not isinstance(account_id, str) or not account_id:

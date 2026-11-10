@@ -1,12 +1,14 @@
 """Offline demonstrations; no network listener or production credentials."""
 import argparse
 from datetime import datetime, timezone
+from decimal import Decimal
 import json
 from .auth import Authenticator
 from .core import FixtureValidator, Store, ValidatedSecurity
 from .jobs import JobRunner, build_default_handlers
 from .notifier import LocalSinkNotifier
-from .services import PortfolioService
+from .ports import Observation
+from .services import OperatorService, PortfolioService
 from .chat import ChatService
 from .model import ModelConfig, ScriptedModel
 from . import monitoring
@@ -58,7 +60,28 @@ def demo():
                             feedback='demo run; redaction applied at capture')
         retrieved = service.retrieve_memories(context, 'fixture import',
                                               query_time=now.isoformat())
+        # M6 paper simulation: one offline walkthrough on a separate ledger with an
+        # operator-ingested synthetic observation. Real holdings are compared before/after;
+        # only counts, a cash string and a boolean are printed (no ids, symbols or bodies).
+        store.create_user('demo-operator')
+        operator = auth.authenticate(auth.provision('demo-operator', role='operator'))
+        OperatorService(service).ingest_observation(operator, Observation(
+            'fixture:demo', Decimal('10'), now, 'synthetic-fixture', 'price', fetched_at=now))
+        holdings_before = service.holdings(context, portfolio)
+        paper_account = service.create_paper_account(context, portfolio, source='synthetic-fixture',
+                                                     mode='paper')
+        service.paper_deposit(context, paper_account, '1000', source='synthetic-fixture',
+                              idempotency_key='demo-deposit', as_of=now, mode='paper')
+        service.submit_paper_order(context, paper_account, 'fixture:demo', 'buy', '1', as_of=now,
+                                   idempotency_key='demo-buy', mode='paper')
+        paper_value = service.value_paper_account(context, paper_account, as_of=now)
+        paper_positions = service.paper_positions(context, paper_account)
         print(json.dumps({'mode':'read_only','holdings':service.holdings(context,portfolio),
+                          'paper_fill_count':sum(1 for e in service.paper_ledger(context,paper_account)
+                                                 if e['entry_type'] in ('buy','sell')),
+                          'paper_cash_text':paper_positions['cash'],
+                          'paper_valuation_status':paper_value['status'],
+                          'paper_real_holdings_unchanged':service.holdings(context,portfolio)==holdings_before,
                           'memory_count':len(service.memories(context)),
                           'trace_count':len(service.traces(context)),
                           'jobs_claimed':len(claimed),'jobs_done':jobs_done,

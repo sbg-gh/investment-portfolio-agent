@@ -204,6 +204,48 @@ class PortfolioService:
         return self._run(context,'paper_order',lambda user:self._store.record_paper_order(
             user,portfolio_id,security_id,quantity,reference_price,mode))
 
+    # M6 paper simulation. Identity is the AuthContext owner; there is no user/owner parameter.
+    # Paper state lives only in paper_accounts/paper_ledger and never touches real holdings.
+    # Traces carry only the operation name and outcome (no ids, amounts or symbols).
+    def create_paper_account(self, context, portfolio_id, *, source, fee_kind='none', fee_amount='0',
+                             mode='read_only'):
+        from . import paper
+        return self._run(context,'create_paper_account',lambda user:paper.create_account(
+            self._store,user,portfolio_id,source=source,
+            fee_model=paper.fee_model_from(fee_kind,fee_amount),mode=mode))
+
+    def paper_deposit(self, context, account_id, amount, *, source, idempotency_key, as_of,
+                      mode='read_only'):
+        from . import paper
+        return self._run(context,'paper_deposit',lambda user:paper.deposit(
+            self._store,user,account_id,amount,source=source,idempotency_key=idempotency_key,
+            as_of=as_of,mode=mode))
+
+    def submit_paper_order(self, context, account_id, security_id, side, quantity, *, as_of,
+                           idempotency_key, mode='read_only', policy=None):
+        from . import paper
+        return self._run(context,'submit_paper_order',lambda user:paper.submit_order(
+            self._store,user,account_id,security_id,side,quantity,as_of=as_of,
+            idempotency_key=idempotency_key,mode=mode,policy=policy))
+
+    def paper_ledger(self, context, account_id):
+        from . import paper
+        return self._run(context,'paper_ledger',lambda user:paper.ledger(self._store,user,account_id))
+
+    def paper_positions(self, context, account_id):
+        from . import paper
+        return self._run(context,'paper_positions',lambda user:paper.positions(self._store,user,account_id))
+
+    def value_paper_account(self, context, account_id, *, as_of, policy=None):
+        from . import paper
+        return self._run(context,'value_paper_account',lambda user:paper.value_account(
+            self._store,user,account_id,as_of=as_of,policy=policy))
+
+    def reconcile_paper_account(self, context, account_id):
+        from . import paper
+        return self._run(context,'reconcile_paper_account',
+            lambda user:paper.reconcile_account(self._store,user,account_id))
+
 class OperatorService:
     def __init__(self, service):
         self._service = service
