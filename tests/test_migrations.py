@@ -58,6 +58,19 @@ def _build_v5(path):
     db.close()
 
 
+def _build_v7(path):
+    """Build a v7 database with a synthetic user, a procedural memory and a run record."""
+    db = sqlite3.connect(path)
+    migrate(db, MIGRATIONS[:7])
+    db.execute("INSERT INTO users VALUES ('alice')")
+    db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) "
+               "VALUES ('mem','alice','private','procedural','alice procedure','fixture')")
+    db.execute("INSERT INTO run_records(id,user_id,request_id,task_type,policy_version,tool_sequence,outcome) "
+               "VALUES ('run','alice','req','valuation:etf','m1-v1','[\"intraday_quote\"]','success')")
+    db.commit()
+    db.close()
+
+
 def _build_v6(path):
     """Build a v6 database with a synthetic user and one private memory (legacy columns)."""
     db = sqlite3.connect(path)
@@ -72,12 +85,120 @@ def _build_v6(path):
     db.close()
 
 
+class V8MigrationTests(unittest.TestCase):
+    def test_fresh_database_ends_at_v8_with_procedure_events(self):
+        s = Store()
+        self.addCleanup(s.close)
+        self.assertEqual(SCHEMA_VERSION, 8)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 8)
+        columns = {row[1] for row in s.db.execute('PRAGMA table_info(procedure_events)').fetchall()}
+        self.assertEqual(columns, {'id', 'memory_id', 'owner_id', 'actor_id', 'event', 'from_state',
+                                   'to_state', 'trigger', 'reason', 'evaluation', 'created_at'})
+
+    def test_v7_upgrade_preserves_data_and_adds_empty_lineage(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v7(path)
+            upgraded = Store(str(path))
+            try:
+                self.assertEqual(upgraded.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM memories').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM run_records').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM procedure_events').fetchone()[0], 0)
+            finally:
+                upgraded.close()
+
+    def test_broken_v8_upgrade_rolls_back_to_v7(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v7(path)
+            db = sqlite3.connect(path)
+            self.addCleanup(db.close)
+            broken = MIGRATIONS[:7] + ((8, 'CREATE TABLE partial(id TEXT);\nINSERT INTO nonexistent VALUES (1);\n'),)
+            with self.assertRaises(sqlite3.OperationalError):
+                migrate(db, broken)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 7)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM memories').fetchone()[0], 1)
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='partial'").fetchone())
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='procedure_events'").fetchone())
+
+    def test_future_schema_9_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'future.sqlite3'
+            db = sqlite3.connect(path)
+            db.execute('PRAGMA user_version=9')
+            db.close()
+            with self.assertRaises(ValueError):
+                Store(str(path))
+
+    def _insert_event(self, s, event_id='e1', **overrides):
+        values = dict(memory_id='mem', owner_id='alice', actor_id='alice', event='extracted',
+                      from_state=None, to_state='candidate', trigger='manual', reason='r', evaluation=None)
+        values.update(overrides)
+        s.db.execute("INSERT INTO procedure_events(id,memory_id,owner_id,actor_id,event,from_state,to_state,"
+                     "trigger,reason,evaluation) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (event_id, values['memory_id'], values['owner_id'], values['actor_id'], values['event'],
+                      values['from_state'], values['to_state'], values['trigger'], values['reason'],
+                      values['evaluation']))
+
+    def _store_with_memory(self):
+        s = Store()
+        self.addCleanup(s.close)
+        s.create_user('alice')
+        s.db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) "
+                     "VALUES ('mem','alice','private','procedural','b','fixture')")
+        s.db.commit()
+        return s
+
+    def test_procedure_events_enum_checks_and_foreign_keys(self):
+        s = self._store_with_memory()
+        self._insert_event(s)
+        for overrides in ({'to_state': 'bogus'}, {'from_state': 'bogus'}, {'trigger': 'bogus'},
+                          {'event': 'bogus'}, {'memory_id': 'missing'}, {'actor_id': 'ghost'}):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self._insert_event(s, 'e-bad', **overrides)
+        s.db.rollback()
+
+    def test_procedure_events_are_append_only(self):
+        s = self._store_with_memory()
+        self._insert_event(s)
+        s.db.commit()
+        with self.assertRaises(sqlite3.IntegrityError):
+            s.db.execute("UPDATE procedure_events SET reason='changed' WHERE id='e1'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            s.db.execute("DELETE FROM procedure_events WHERE id='e1'")
+        self.assertEqual(s.db.execute("SELECT reason FROM procedure_events").fetchall(), [('r',)])
+
+    def test_v8_backup_restore_carries_procedure_events_and_revokes_credentials(self):
+        from portfolio_agent.auth import Authenticator
+        from portfolio_agent.backup import backup, restore
+        s = self._store_with_memory()
+        Authenticator(s).provision('alice')
+        self._insert_event(s)
+        s.db.commit()
+        with tempfile.TemporaryDirectory() as td:
+            snapshot = Path(td) / 'snap.sqlite3'
+            recovered = Path(td) / 'restored.sqlite3'
+            backup(s, snapshot)
+            restore(snapshot, recovered)
+            restored = Store(str(recovered))
+            try:
+                self.assertEqual(restored.db.execute('PRAGMA user_version').fetchone()[0], 8)
+                self.assertEqual(restored.db.execute('PRAGMA foreign_key_check').fetchall(), [])
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM procedure_events').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM credentials WHERE revoked=0').fetchone()[0], 0)
+                with self.assertRaises(sqlite3.IntegrityError):
+                    restored.db.execute("DELETE FROM procedure_events")
+            finally:
+                restored.close()
+
+
 class V7MigrationTests(unittest.TestCase):
     def test_fresh_database_ends_at_v7(self):
         s = Store()
         self.addCleanup(s.close)
-        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 7)
-        self.assertEqual(SCHEMA_VERSION, 7)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
+        self.assertGreaterEqual(SCHEMA_VERSION, 7)
         for table in ('run_records', 'memory_deletions'):
             self.assertIsNotNone(
                 s.db.execute("SELECT name FROM sqlite_master WHERE name=?", (table,)).fetchone())

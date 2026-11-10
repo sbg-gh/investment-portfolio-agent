@@ -128,6 +128,63 @@ class PortfolioService:
         return self._run(context,'supersede_memory',lambda user:self._store.supersede_memory(
             user,memory_id,reason=reason,kind=kind,body=body,source=source,**new_fields))
 
+    # M5b procedure lifecycle. Identity is the AuthContext owner; there is no user-id parameter.
+    # Procedure content stays out of execution_traces: only the operation name and outcome are logged.
+    def extract_procedure_candidates(self, context):
+        from . import procedures
+        return self._run(context,'extract_procedure_candidates',
+            lambda user:procedures.extract_candidates(self._store,user))
+
+    def propose_procedure_version(self, context, memory_id, **overrides):
+        from . import procedures
+        return self._run(context,'propose_procedure_version',
+            lambda user:procedures.propose_version(self._store,user,memory_id,**overrides))
+
+    def review_procedure(self, context, memory_id):
+        from . import procedures
+        return self._run(context,'review_procedure',
+            lambda user:procedures.review_candidate(self._store,user,memory_id))
+
+    def record_procedure_evaluation(self, context, memory_id, report):
+        from . import procedures
+        return self._run(context,'record_procedure_evaluation',
+            lambda user:procedures.record_evaluation(self._store,user,memory_id,report))
+
+    def approve_procedure(self, context, memory_id):
+        from . import procedures
+        return self._run(context,'approve_procedure',
+            lambda user:procedures.approve(self._store,user,memory_id))
+
+    def activate_procedure(self, context, memory_id):
+        from . import procedures
+        return self._run(context,'activate_procedure',
+            lambda user:procedures.activate(self._store,user,memory_id))
+
+    def deprecate_procedure(self, context, memory_id, *, reason):
+        from . import procedures
+        return self._run(context,'deprecate_procedure',
+            lambda user:procedures.deprecate(self._store,user,memory_id,reason=reason))
+
+    def rollback_procedure(self, context, memory_id, *, reason):
+        from . import procedures
+        return self._run(context,'rollback_procedure',
+            lambda user:procedures.rollback(self._store,user,memory_id,reason=reason))
+
+    def check_procedure_regression(self, context, memory_id, report):
+        from . import procedures
+        return self._run(context,'check_procedure_regression',
+            lambda user:procedures.check_regression(self._store,user,memory_id,report))
+
+    def active_procedures(self, context):
+        from . import procedures
+        return self._run(context,'active_procedures',
+            lambda user:procedures.active_procedures(self._store,user))
+
+    def procedure_lineage(self, context, memory_id):
+        from . import procedures
+        return self._run(context,'procedure_lineage',
+            lambda user:procedures.lineage(self._store,user,memory_id))
+
     def set_preferences(self, context, *, quiet_start, quiet_end,
                         materiality_threshold, cooldown_seconds, channel='local-sink'):
         return self._run(context,'set_preferences',lambda user:self._store.set_notification_preferences(
@@ -159,6 +216,12 @@ class OperatorService:
     def ingest_public_fact(self, context, body, source):
         return self._service._run(context,'public_fact',lambda _:self._service._store.ingest_public_fact(
             body,source),operator=True)
+
+    def publish_generic_procedure(self, context, memory_id):
+        """Operator-only: publish an active procedure's privacy-reviewed generic form."""
+        from . import procedures
+        return self._service._run(context,'publish_generic_procedure',
+            lambda operator:procedures.publish(self._service._store,operator,memory_id),operator=True)
 
     def enable_monitoring(self, context, security_id):
         return self._service._run(context,'enable_monitoring',lambda _:self._service._store.enable_monitoring(

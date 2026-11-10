@@ -207,10 +207,34 @@ CREATE TABLE memory_deletions(
  deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE INDEX deletion_lineage ON memory_deletions(memory_id);
 """
+# M5b adds ONE append-only lineage table for the procedure promotion lifecycle. The current
+# lifecycle state is the to_state of the latest event; memories.status/review_status stay the
+# M5a retrieval/share gates. Events hold redacted bounded reasons and numeric evaluation
+# digests only: no payloads, prompts, holdings or user text.
+M5B_PROCEDURE_SCHEMA = """
+CREATE TABLE procedure_events(
+ id TEXT PRIMARY KEY, memory_id TEXT NOT NULL REFERENCES memories(id),
+ owner_id TEXT NOT NULL REFERENCES users(id), actor_id TEXT NOT NULL REFERENCES users(id),
+ event TEXT NOT NULL CHECK(event IN ('extracted','reviewed','rejected','evaluated','approved',
+   'activated','deprecated','rolled_back','superseded','restored','published')),
+ from_state TEXT CHECK(from_state IS NULL OR from_state IN ('candidate','reviewed','evaluated',
+   'approved','active','deprecated','rolled_back','rejected')),
+ to_state TEXT NOT NULL CHECK(to_state IN ('candidate','reviewed','evaluated','approved',
+   'active','deprecated','rolled_back','rejected')),
+ trigger TEXT NOT NULL CHECK(trigger IN ('manual','regression','review','evaluation','operator')),
+ reason TEXT, evaluation TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX procedure_event_memory ON procedure_events(memory_id);
+CREATE TRIGGER procedure_events_no_update BEFORE UPDATE ON procedure_events
+BEGIN SELECT RAISE(ABORT,'procedure_events is append-only'); END;
+CREATE TRIGGER procedure_events_no_delete BEFORE DELETE ON procedure_events
+BEGIN SELECT RAISE(ABORT,'procedure_events is append-only'); END;
+"""
 MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA),
               (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA),
-              (6, M3_PROACTIVE_SCHEMA), (7, M5A_MEMORY_SCHEMA))
-SCHEMA_VERSION = 7
+              (6, M3_PROACTIVE_SCHEMA), (7, M5A_MEMORY_SCHEMA),
+              (8, M5B_PROCEDURE_SCHEMA))
+SCHEMA_VERSION = 8
 
 def statements(script):
     pending = ''
