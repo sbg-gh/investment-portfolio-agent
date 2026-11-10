@@ -12,3 +12,6 @@ var/
 # Agent workflow artifacts (plans, reviews) and transient worktrees
 .agents/
 .worktrees/
+# Built web UI (npm --prefix ui run build) and node tooling
+src/portfolio_agent/web/static/
+ui/node_modules/

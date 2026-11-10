@@ -8,6 +8,8 @@ version = "0.3.0"
 description = "Local-first, scoped portfolio agent foundation"
 requires-python = ">=3.11"
 dependencies = []
+[project.optional-dependencies]
+ui = ["uvicorn==0.54.0", "h11==0.16.0", "click==8.5.1"]
 
 [project.scripts]
 portfolio-agent = "portfolio_agent.cli:main"
@@ -16,4 +18,4 @@ portfolio-agent = "portfolio_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-portfolio_agent = ["eval_cases.json", "valuation_cases.json", "import_cases.json", "m2_cases.json", "m3_cases.json", "m4_cases.json", "m5a_cases.json", "m5b_cases.json", "m5b_prereg.json", "m6_cases.json"]
+portfolio_agent = ["eval_cases.json", "valuation_cases.json", "import_cases.json", "m2_cases.json", "m3_cases.json", "m4_cases.json", "m5a_cases.json", "m5b_cases.json", "m5b_prereg.json", "m6_cases.json", "web/static/**"]
