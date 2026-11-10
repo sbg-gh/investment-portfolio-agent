@@ -72,6 +72,12 @@ def ingest_observation(store, observation):
             raise ValueError('Conflicting observation; provide a new fetch timestamp for a revision') from exc
     return identity
 
+def select_observation(db, security_id, source, basis, cutoff):
+    """Latest observation known at the cutoff: observed AND fetched at or before it."""
+    return db.execute('SELECT id,value,observed_at,fetched_at FROM market_observations '
+        'WHERE security_id=? AND source=? AND basis=? AND observed_at<=? AND fetched_at<=? '
+        'ORDER BY observed_at DESC,fetched_at DESC,id DESC LIMIT 1',
+        (security_id,source,basis,cutoff.isoformat(),cutoff.isoformat())).fetchone()
 def value_portfolio(store, user, portfolio_id, *, as_of, source, policy=None):
     store._authorize(user,portfolio_id)
     cutoff = utc(as_of)
@@ -92,10 +98,7 @@ def value_portfolio(store, user, portfolio_id, *, as_of, source, policy=None):
         for security_id,quantity,kind in positions:
             qty = numeric(Decimal(quantity))
             basis = 'nav' if kind=='mutual_fund' else 'price'
-            row = store.db.execute('SELECT id,value,observed_at,fetched_at FROM market_observations '
-                'WHERE security_id=? AND source=? AND basis=? AND observed_at<=? AND fetched_at<=? '
-                'ORDER BY observed_at DESC,fetched_at DESC,id DESC LIMIT 1',
-                (security_id,source,basis,cutoff.isoformat(),cutoff.isoformat())).fetchone()
+            row = select_observation(store.db,security_id,source,basis,cutoff)
             line = {'security_id':security_id,'kind':kind,'quantity':decimal_text(qty),'basis':basis,
                     'status':'missing','market_value':None,'unit_value':None,'observation_id':None,
                     'source':None,'observed_at':None,'fetched_at':None}

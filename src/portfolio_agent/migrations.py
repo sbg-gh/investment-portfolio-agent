@@ -230,11 +230,53 @@ BEGIN SELECT RAISE(ABORT,'procedure_events is append-only'); END;
 CREATE TRIGGER procedure_events_no_delete BEFORE DELETE ON procedure_events
 BEGIN SELECT RAISE(ABORT,'procedure_events is append-only'); END;
 """
+# M6 paper simulation: two paper-ONLY append-only tables. Rejected orders are NOT stored
+# (they raise PaperRejected and write nothing). The M0 paper_orders table is untouched, and
+# nothing here references holdings, transactions, import_receipts or holding_events, so a
+# paper fill can never mutate real holdings. Fee model and price source are immutable per
+# account so fills stay reproducible.
+M6_PAPER_SCHEMA = """
+CREATE TABLE paper_accounts(
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+ portfolio_id TEXT NOT NULL REFERENCES portfolios(id),
+ currency TEXT NOT NULL CHECK(currency='USD'), price_source TEXT NOT NULL,
+ fee_kind TEXT NOT NULL CHECK(fee_kind IN ('none','flat','per_share','percentage')),
+ fee_amount TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX paper_account_owner ON paper_accounts(user_id);
+CREATE TRIGGER paper_accounts_owner BEFORE INSERT ON paper_accounts
+WHEN NOT EXISTS (SELECT 1 FROM portfolios WHERE id=NEW.portfolio_id AND user_id=NEW.user_id)
+BEGIN SELECT RAISE(ABORT,'paper account portfolio must belong to the account owner'); END;
+CREATE TRIGGER paper_accounts_no_update BEFORE UPDATE ON paper_accounts
+BEGIN SELECT RAISE(ABORT,'paper_accounts is append-only'); END;
+CREATE TRIGGER paper_accounts_no_delete BEFORE DELETE ON paper_accounts
+BEGIN SELECT RAISE(ABORT,'paper_accounts is append-only'); END;
+CREATE TABLE paper_ledger(
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES paper_accounts(id),
+ entry_type TEXT NOT NULL CHECK(entry_type IN ('deposit','buy','sell')),
+ security_id TEXT REFERENCES securities(id), quantity TEXT, unit_price TEXT,
+ fee TEXT NOT NULL DEFAULT '0', cash_delta TEXT NOT NULL,
+ basis TEXT CHECK(basis IS NULL OR basis IN ('price','nav')),
+ observation_id TEXT REFERENCES market_observations(id),
+ price_as_of TEXT, nav_date TEXT, as_of TEXT NOT NULL, source TEXT NOT NULL,
+ idempotency_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(account_id,idempotency_key),
+ CHECK((entry_type='deposit' AND security_id IS NULL AND quantity IS NULL AND unit_price IS NULL
+        AND observation_id IS NULL AND basis IS NULL AND price_as_of IS NULL AND nav_date IS NULL)
+    OR (entry_type IN ('buy','sell') AND security_id IS NOT NULL AND quantity IS NOT NULL
+        AND unit_price IS NOT NULL AND observation_id IS NOT NULL AND basis IS NOT NULL
+        AND price_as_of IS NOT NULL)),
+ CHECK(basis IS NULL OR (basis='nav')=(nav_date IS NOT NULL)));
+CREATE INDEX ledger_account ON paper_ledger(account_id);
+CREATE TRIGGER paper_ledger_no_update BEFORE UPDATE ON paper_ledger
+BEGIN SELECT RAISE(ABORT,'paper_ledger is append-only'); END;
+CREATE TRIGGER paper_ledger_no_delete BEFORE DELETE ON paper_ledger
+BEGIN SELECT RAISE(ABORT,'paper_ledger is append-only'); END;
+"""
 MIGRATIONS = ((1, LEGACY_SCHEMA), (2, SCOPE_SCHEMA), (3, VALUATION_SCHEMA),
               (4, M2_IMPORT_SCHEMA), (5, M2_COMPLETION_SCHEMA),
               (6, M3_PROACTIVE_SCHEMA), (7, M5A_MEMORY_SCHEMA),
-              (8, M5B_PROCEDURE_SCHEMA))
-SCHEMA_VERSION = 8
+              (8, M5B_PROCEDURE_SCHEMA), (9, M6_PAPER_SCHEMA))
+SCHEMA_VERSION = 9
 
 def statements(script):
     pending = ''

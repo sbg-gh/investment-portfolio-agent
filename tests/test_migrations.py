@@ -85,12 +85,143 @@ def _build_v6(path):
     db.close()
 
 
+def _build_v8(path):
+    """Build a v8 database with synthetic holdings, memory and lineage rows."""
+    db = sqlite3.connect(path)
+    migrate(db, MIGRATIONS[:8])
+    db.execute("INSERT INTO users VALUES ('alice')")
+    db.execute("INSERT INTO portfolios VALUES ('p','alice','private')")
+    db.execute("INSERT INTO securities(id,symbol,kind,country,source) VALUES ('s','S','stock','US','fixture')")
+    db.execute("INSERT INTO holdings VALUES ('p','s','1.25')")
+    db.execute("INSERT INTO memories(id,user_id,scope,kind,body,source) "
+               "VALUES ('mem','alice','private','procedural','b','fixture')")
+    db.execute("INSERT INTO procedure_events(id,memory_id,owner_id,actor_id,event,to_state,trigger) "
+               "VALUES ('e1','mem','alice','alice','extracted','candidate','manual')")
+    db.commit()
+    db.close()
+PAPER_TABLES = ('paper_accounts', 'paper_ledger')
+FORBIDDEN_TARGETS = ('holdings', 'transactions', 'import_receipts', 'holding_events', 'paper_orders')
+class V9MigrationTests(unittest.TestCase):
+    def _store(self):
+        s = Store()
+        self.addCleanup(s.close)
+        s.create_user('alice')
+        s.create_user('bob')
+        s.db.execute("INSERT INTO portfolios VALUES ('p','alice','private')")
+        s.db.execute("INSERT INTO securities(id,symbol,kind,country,source) VALUES ('s','S','stock','US','fixture')")
+        s.db.commit()
+        return s
+    def _definitions(self, db):
+        return dict(db.execute("SELECT name,sql FROM sqlite_master WHERE type IN ('table','index','trigger')").fetchall())
+    def test_fresh_database_is_v9_with_paper_tables(self):
+        s = Store()
+        self.addCleanup(s.close)
+        self.assertEqual(SCHEMA_VERSION, 9)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 9)
+        for name in PAPER_TABLES:
+            self.assertIsNotNone(s.db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (name,)).fetchone())
+    def test_v8_upgrade_preserves_data_and_existing_definitions(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v8(path)
+            old = sqlite3.connect(path)
+            before = self._definitions(old)
+            old.close()
+            upgraded = Store(str(path))
+            try:
+                self.assertEqual(upgraded.db.execute('PRAGMA user_version').fetchone()[0], 9)
+                after = self._definitions(upgraded.db)
+                for name, sql in before.items():
+                    self.assertEqual(after[name], sql, name)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM holdings').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM memories').fetchone()[0], 1)
+                self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM procedure_events').fetchone()[0], 1)
+                for name in PAPER_TABLES:
+                    self.assertEqual(upgraded.db.execute(f'SELECT COUNT(*) FROM {name}').fetchone()[0], 0)
+            finally:
+                upgraded.close()
+    def test_broken_v9_upgrade_rolls_back_then_store_recovers(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'old.sqlite3'
+            _build_v8(path)
+            db = sqlite3.connect(path)
+            broken = MIGRATIONS[:8] + ((9, 'CREATE TABLE partial(id TEXT);\nINSERT INTO nonexistent VALUES (1);\n'),)
+            with self.assertRaises(sqlite3.OperationalError):
+                migrate(db, broken)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 8)
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='partial'").fetchone())
+            for name in PAPER_TABLES:
+                self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name=?", (name,)).fetchone())
+            db.close()
+            recovered = Store(str(path))
+            try:
+                self.assertEqual(recovered.db.execute('PRAGMA user_version').fetchone()[0], 9)
+                self.assertEqual(recovered.db.execute('SELECT COUNT(*) FROM holdings').fetchone()[0], 1)
+            finally:
+                recovered.close()
+    def test_future_schema_10_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / 'future.sqlite3'
+            db = sqlite3.connect(path)
+            db.execute('PRAGMA user_version=10')
+            db.close()
+            with self.assertRaises(ValueError):
+                Store(str(path))
+    def _paper_rows(self, s):
+        s.db.execute("INSERT INTO paper_accounts(id,user_id,portfolio_id,currency,price_source,fee_kind,fee_amount) "
+                     "VALUES ('a','alice','p','USD','fixture','none','0')")
+        s.db.execute("INSERT INTO paper_ledger(id,account_id,entry_type,cash_delta,as_of,source,idempotency_key) "
+                     "VALUES ('l','a','deposit','100','2026-01-01T00:00:00+00:00','fixture','k1')")
+        s.db.commit()
+    def test_v9_backup_restore_carries_paper_rows_and_stays_append_only(self):
+        from portfolio_agent.auth import Authenticator
+        from portfolio_agent.backup import backup, restore
+        s = self._store()
+        Authenticator(s).provision('alice')
+        self._paper_rows(s)
+        with tempfile.TemporaryDirectory() as td:
+            snapshot, recovered = Path(td) / 'snap.sqlite3', Path(td) / 'restored.sqlite3'
+            backup(s, snapshot)
+            restore(snapshot, recovered)
+            restored = Store(str(recovered))
+            try:
+                self.assertEqual(restored.db.execute('PRAGMA user_version').fetchone()[0], 9)
+                self.assertEqual(restored.db.execute('PRAGMA foreign_key_check').fetchall(), [])
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM paper_accounts').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM paper_ledger').fetchone()[0], 1)
+                self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM credentials WHERE revoked=0').fetchone()[0], 0)
+                for sql in ("UPDATE paper_ledger SET cash_delta='1'", "DELETE FROM paper_ledger",
+                            "UPDATE paper_accounts SET fee_amount='1'", "DELETE FROM paper_accounts"):
+                    with self.assertRaises(sqlite3.IntegrityError):
+                        restored.db.execute(sql)
+            finally:
+                restored.close()
+    def test_account_trigger_rejects_foreign_portfolio(self):
+        s = self._store()
+        with self.assertRaises(sqlite3.IntegrityError):
+            s.db.execute("INSERT INTO paper_accounts(id,user_id,portfolio_id,currency,price_source,fee_kind,fee_amount) "
+                         "VALUES ('a','bob','p','USD','fixture','none','0')")
+    def test_paper_tables_are_isolated_from_real_ledgers(self):
+        s = self._store()
+        allowed = {'users', 'portfolios', 'securities', 'market_observations', 'paper_accounts'}
+        for name in PAPER_TABLES:
+            targets = {row[2] for row in s.db.execute(f'PRAGMA foreign_key_list({name})')}
+            self.assertLessEqual(targets, allowed, name)
+        triggers = s.db.execute("SELECT name,tbl_name,sql FROM sqlite_master WHERE type='trigger'").fetchall()
+        for name, table, sql in triggers:
+            if table in PAPER_TABLES:
+                for forbidden in FORBIDDEN_TARGETS:
+                    self.assertNotIn(forbidden, sql, name)
+        for name in PAPER_TABLES:
+            sql = s.db.execute("SELECT sql FROM sqlite_master WHERE name=?", (name,)).fetchone()[0]
+            for forbidden in FORBIDDEN_TARGETS:
+                self.assertNotIn(forbidden, sql, name)
 class V8MigrationTests(unittest.TestCase):
     def test_fresh_database_ends_at_v8_with_procedure_events(self):
         s = Store()
         self.addCleanup(s.close)
-        self.assertEqual(SCHEMA_VERSION, 8)
-        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], 8)
+        self.assertGreaterEqual(SCHEMA_VERSION, 8)
+        self.assertEqual(s.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
         columns = {row[1] for row in s.db.execute('PRAGMA table_info(procedure_events)').fetchall()}
         self.assertEqual(columns, {'id', 'memory_id', 'owner_id', 'actor_id', 'event', 'from_state',
                                    'to_state', 'trigger', 'reason', 'evaluation', 'created_at'})
@@ -122,11 +253,11 @@ class V8MigrationTests(unittest.TestCase):
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='partial'").fetchone())
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='procedure_events'").fetchone())
 
-    def test_future_schema_9_is_rejected(self):
+    def test_future_schema_10_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / 'future.sqlite3'
             db = sqlite3.connect(path)
-            db.execute('PRAGMA user_version=9')
+            db.execute('PRAGMA user_version=10')
             db.close()
             with self.assertRaises(ValueError):
                 Store(str(path))
@@ -183,7 +314,7 @@ class V8MigrationTests(unittest.TestCase):
             restore(snapshot, recovered)
             restored = Store(str(recovered))
             try:
-                self.assertEqual(restored.db.execute('PRAGMA user_version').fetchone()[0], 8)
+                self.assertEqual(restored.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
                 self.assertEqual(restored.db.execute('PRAGMA foreign_key_check').fetchall(), [])
                 self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM procedure_events').fetchone()[0], 1)
                 self.assertEqual(restored.db.execute('SELECT COUNT(*) FROM credentials WHERE revoked=0').fetchone()[0], 0)
