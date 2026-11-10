@@ -33,7 +33,7 @@ The commands use synthetic data and fresh in-memory databases. No API keys, mark
 - Private execution traces containing operation, outcome, policy version and timing, without portfolio IDs or request payloads. Successful changes and traces commit atomically.
 - Consistent backup/restore to a new file, integrity/schema checks and credential revocation on restore.
 - Deterministic safety evaluation fixtures and CI gates alongside regression tests.
-- Read-only default; explicit paper buy-intent records do not change actual holdings.
+- Read-only default. The M6 paper ledger (explicit `paper` mode only) simulates cash, fees, FIFO lots and reproducible fills in separate tables; it never reads or writes real holdings. M0 paper buy-intent records remain a reference-price annotation.
 
 - Fixture-backed stock/ETF and dated fund-NAV valuation with explicit stale/missing states, source/cutoff provenance and private saved snapshots.
 
@@ -45,7 +45,7 @@ The commands use synthetic data and fresh in-memory databases. No API keys, mark
 
 M1 implements local identity, persistence and service boundaries. It does not include an HTTP listener, interactive login, UI, prompt/cache authorization adapters or production deployment. Store, credential provisioning and backup functions are trusted operator internals. They are not endpoints. Python code and anyone with database/process access remain trusted; this is not an in-process security sandbox.
 
-Real providers, financial accounting, proactive jobs, local inference, conversational orchestration, learned-procedure promotion and full paper ledgers remain planned. The evaluation baseline measures deterministic safety, not investment performance or behavioral improvement.
+Real market-data providers are not implemented. Valuation, proactive jobs, local inference, conversational orchestration, learned-procedure promotion and the paper ledger exist as local, offline building blocks over fixtures; corporate actions, tax-lot reporting, a user-facing CLI/UI and a real market-data adapter remain outside the delivered plan. The evaluation baseline measures deterministic safety, not investment performance or behavioral improvement.
 
 ## Documentation
 
@@ -56,6 +56,7 @@ Real providers, financial accounting, proactive jobs, local inference, conversat
 - [M4 hybrid chat and local model](docs/M4.md)
 - [M5a memory substrate](docs/M5a.md)
 - [M5b experience learning and held-out evaluation](docs/M5b.md)
+- [M6 paper portfolio simulation](docs/M6.md)
 - [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
 - [Read-only valuation and example](docs/VALUATION.md)
 - [Testing and evaluation](docs/TESTING.md)

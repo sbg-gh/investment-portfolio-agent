@@ -26,7 +26,7 @@ Source: user requirements and visible user turns in “Propose Agent Architectur
 - SQLite and Python standard library form M0. No vector database, orchestration framework, message broker or model vendor is mandatory.
 - Start with one local service process, one inference request at a time, and bounded worker queues. A loopback model adapter is planned; benchmark models against actual Mac memory before choosing one.
 - No private-to-public automatic memory promotion. Public facts enter through trusted public-data ingestion; generic learned procedures require review and privacy checks.
-- M0 paper records are positive buy intents with reference prices, not simulated fills, balances or investment performance.
+- M0 paper records are positive buy intents with reference prices, not simulated fills, balances or investment performance. M6 adds a separate paper ledger (see the M6 choices below); the M0 `paper_orders` table and `record_paper_order` are unchanged.
 
 Unresolved: data-provider licensing and coverage, model/quantization choice, retention duration, alert thresholds, portfolio accounting method, authentication mechanism and notification channel. Resolve each before its owning milestone is accepted.
 
@@ -140,3 +140,15 @@ These were fixed in the plan and the pre-registration BEFORE any result existed.
 6. One append-only v8 table. `procedure_events` (BEFORE UPDATE/DELETE abort) holds lifecycle state, actor, trigger and a numeric evaluation digest. Reusing M5a `memories.status`/`memory_deletions` could not express the states or lineage.
 7. Simulation fairness. `PolicyModel` switches to `dated_nav` only via the system-assembled `[APPROVED_PROCEDURES]` channel; `[MEMORY]` is untrusted data and never changes tool choice. This is an assumption of the simulation, stated in docs: the significant verdict validates the apparatus and plumbing, not real-LLM adaptation.
 8. The `held_out_evaluation` block exists only in the M5b report; m1..m5a stay regression gates. The M5 gate is recorded as met on the synthetic simulation only.
+## M6 paper-simulation choices (2026-11-07)
+M6 adds a separate paper ledger at schema v9. It is a simulation: nothing here claims performance, and no live mode exists.
+1. No model-proposed paper orders. Paper operations are service methods that derive the owner from the AuthContext. The chat tool allow-list contains no paper tool, so a model proposal naming one is rejected and writes nothing.
+2. FIFO lots. The oldest lot is consumed first. A buy fee is capitalized into the lot basis, a sell fee reduces proceeds, and a partially consumed lot's basis is rounded to 12 decimal places (half-even) with the exact residue kept on the remaining lot. Realized P&L is accounting, not performance.
+3. Fees and fills. The account fee model is flat, per-share or percentage (a fraction, so 0.001 is 0.1%), applied exactly and unrounded. A stock or ETF fills at the cutoff observation (same selection rule as valuation) with no slippage and no intraday-execution claim.
+4. Corporate actions deferred. The ledger has no split, dividend or merger entry types; positions do not adjust. This is a documented limitation.
+5. New paper-only tables. `paper_accounts` and `paper_ledger` (v9, append-only triggers) reference only users, portfolios, securities, market observations and paper accounts. No column or key points at holdings, transactions, import receipts or holding events.
+6. Rejections raise and persist nothing. Overdraft, oversell, stale and missing price/NAV raise `PaperRejected`; only the payload-free `invalid` trace is written. There is no pending state, because that would need a scheduler; retry with a new idempotency key once data arrives.
+7. M0 `paper_orders` untouched. It stays a reference-price intent annotation with no cash, lots or fills, and the paper ledger neither reads nor writes it. No migration touches it.
+8. Fund fill-date assumption. A mutual fund fills at the latest published NAV whose observed and fetched times are at or before the cutoff, and the NAV date is recorded. Forward pricing and the 4pm cutoff are not modeled, and a price observation is never a fund basis.
+9. Authorizer proof. Isolation is shown by byte-identical dumps of the real-state tables after broad paper activity, and by running the whole paper workload on a connection whose SQLite authorizer denies every read and write of those tables.
+10. Mode gate. Mutators accept exactly the string `paper`; the default is `read_only`, and unknown or live values are rejected.

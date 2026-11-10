@@ -48,7 +48,7 @@ inherit the same authz + deletion semantics). See ../M5a.md.
 
 ## Execution modes
 
-Read-only permits analysis, imports, memory and alerts but no order records. Paper permits isolated simulated activity only. M0 records buy intents against an explicit reference price and leaves actual holdings untouched. M6 introduces a separate paper account/ledger, side, cash checks, fees, fill assumptions and reproducible valuation. Mutual fund simulation must use dated NAV semantics and explicit assumptions, not stock-style intraday fills. Live mode is absent and rejected, including unknown mode values.
+Read-only permits analysis, imports, memory and alerts but no order records. Paper permits isolated simulated activity only. M0 records buy intents against an explicit reference price and leaves actual holdings untouched. M6 implements a separate paper account/ledger with side, cash checks, fees, fill assumptions and reproducible valuation through `create_paper_account`, `paper_deposit`, `submit_paper_order`, `paper_ledger`, `paper_positions`, `value_paper_account` and `reconcile_paper_account`. None takes a user or owner argument; mutators require mode exactly `paper`. Mutual fund simulation must use dated NAV semantics and explicit assumptions, not stock-style intraday fills. Live mode is absent and rejected, including unknown mode values.
 
 ## Error behavior
 

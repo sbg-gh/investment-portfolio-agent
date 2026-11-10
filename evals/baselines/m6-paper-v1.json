@@ -1,0 +1,111 @@
+{
+  "suite": "m6-paper-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "8fa1d31ea110bccfa9fd2d75f7afff09191805521c74d18b65de403136912b0a",
+  "total": 17,
+  "passed": 17,
+  "results": [
+    {
+      "id": "m6-001",
+      "expected": "unchanged",
+      "observed": "unchanged",
+      "passed": true
+    },
+    {
+      "id": "m6-002",
+      "expected": "all_rejected_none_written",
+      "observed": "all_rejected_none_written",
+      "passed": true
+    },
+    {
+      "id": "m6-003",
+      "expected": "insufficient_cash_no_effect",
+      "observed": "insufficient_cash_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-004",
+      "expected": "insufficient_position_no_effect",
+      "observed": "insufficient_position_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-005",
+      "expected": "identical",
+      "observed": "identical",
+      "passed": true
+    },
+    {
+      "id": "m6-006",
+      "expected": "prior_observation_used",
+      "observed": "prior_observation_used",
+      "passed": true
+    },
+    {
+      "id": "m6-007",
+      "expected": "price_stale_no_effect",
+      "observed": "price_stale_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-008",
+      "expected": "price_missing_no_effect",
+      "observed": "price_missing_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-009",
+      "expected": "nav_dated",
+      "observed": "nav_dated",
+      "passed": true
+    },
+    {
+      "id": "m6-010",
+      "expected": "nav_stale_no_effect",
+      "observed": "nav_stale_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-011",
+      "expected": "exact",
+      "observed": "exact",
+      "passed": true
+    },
+    {
+      "id": "m6-012",
+      "expected": "fifo_exact",
+      "observed": "fifo_exact",
+      "passed": true
+    },
+    {
+      "id": "m6-013",
+      "expected": "reconciled",
+      "observed": "reconciled",
+      "passed": true
+    },
+    {
+      "id": "m6-014",
+      "expected": "divergence_flagged",
+      "observed": "divergence_flagged",
+      "passed": true
+    },
+    {
+      "id": "m6-015",
+      "expected": "one_fill",
+      "observed": "one_fill",
+      "passed": true
+    },
+    {
+      "id": "m6-016",
+      "expected": "denied_no_effect",
+      "observed": "denied_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m6-017",
+      "expected": "total_withheld",
+      "observed": "total_withheld",
+      "passed": true
+    }
+  ]
+}

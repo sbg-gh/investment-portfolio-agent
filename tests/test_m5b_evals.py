@@ -123,14 +123,15 @@ class FreezeAndBaselineTests(unittest.TestCase):
         # The analysis is deterministic: today's run must reproduce the recorded one exactly.
         self.assertEqual(evaluate(), baseline)
 
-    def test_cli_eval_runs_seven_suites_and_fails_closed_on_a_mutation(self):
+    def test_cli_eval_runs_eight_suites_and_fails_closed_on_a_mutation(self):
         from portfolio_agent import cli, m5b_evaluation
         out = io.StringIO()
         with mock.patch('sys.argv', ['portfolio_agent', 'eval']), contextlib.redirect_stdout(out):
             cli.main()
         reports = json.loads(out.getvalue())
-        self.assertEqual(len(reports), 7)
-        self.assertEqual(reports[-1]['suite'], 'm5b-learning-baseline-v1')
+        self.assertEqual(len(reports), 8)
+        self.assertEqual(reports[6]['suite'], 'm5b-learning-baseline-v1')
+        self.assertEqual(reports[7]['suite'], 'm6-paper-baseline-v1')
         self.assertTrue(all(r['passed'] == r['total'] for r in reports))
         cases = [{**c, 'expected': 'deliberately-wrong'} for c in m5b_evaluation.load_cases()]
         with mock.patch('sys.argv', ['portfolio_agent', 'eval']), \

@@ -1,0 +1,87 @@
+[
+  {
+    "id": "m6-001",
+    "scenario": "real_holdings_untouched",
+    "expected": "unchanged"
+  },
+  {
+    "id": "m6-002",
+    "scenario": "live_mode_rejected",
+    "expected": "all_rejected_none_written"
+  },
+  {
+    "id": "m6-003",
+    "scenario": "overdraft_rejected",
+    "expected": "insufficient_cash_no_effect"
+  },
+  {
+    "id": "m6-004",
+    "scenario": "oversell_rejected",
+    "expected": "insufficient_position_no_effect"
+  },
+  {
+    "id": "m6-005",
+    "scenario": "stock_fill_reproducible",
+    "expected": "identical"
+  },
+  {
+    "id": "m6-006",
+    "scenario": "post_cutoff_observation_ignored",
+    "expected": "prior_observation_used"
+  },
+  {
+    "id": "m6-007",
+    "scenario": "stale_price_rejected",
+    "expected": "price_stale_no_effect"
+  },
+  {
+    "id": "m6-008",
+    "scenario": "missing_price_rejected",
+    "expected": "price_missing_no_effect"
+  },
+  {
+    "id": "m6-009",
+    "scenario": "fund_fills_at_dated_nav",
+    "expected": "nav_dated"
+  },
+  {
+    "id": "m6-010",
+    "scenario": "stale_nav_rejected",
+    "expected": "nav_stale_no_effect"
+  },
+  {
+    "id": "m6-011",
+    "scenario": "fee_models_exact",
+    "expected": "exact"
+  },
+  {
+    "id": "m6-012",
+    "scenario": "fifo_cost_basis_exact",
+    "expected": "fifo_exact"
+  },
+  {
+    "id": "m6-013",
+    "scenario": "ledger_reconciles",
+    "expected": "reconciled"
+  },
+  {
+    "id": "m6-014",
+    "scenario": "tampered_ledger_flagged",
+    "expected": "divergence_flagged"
+  },
+  {
+    "id": "m6-015",
+    "scenario": "idempotent_retry_single_fill",
+    "expected": "one_fill"
+  },
+  {
+    "id": "m6-016",
+    "scenario": "cross_user_denied",
+    "expected": "denied_no_effect"
+  },
+  {
+    "id": "m6-017",
+    "scenario": "valuation_incomplete_when_stale",
+    "expected": "total_withheld"
+  }
+]
