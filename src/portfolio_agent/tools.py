@@ -8,6 +8,11 @@ Security never depends on the model honoring a format.
 """
 from dataclasses import dataclass
 
+# Fixed provenance sources for the two valuation tools. The model can never choose a source.
+INTRADAY_SOURCE = 'synthetic-intraday-quote'
+NAV_SOURCE = 'synthetic-dated-nav'
+FIXED_SOURCE_TOOLS = {'intraday_quote': INTRADAY_SOURCE, 'dated_nav': NAV_SOURCE}
+
 
 class ProposalRejected(Exception):
     """A proposed tool call failed the deterministic schema/allow-list gate."""
@@ -53,6 +58,8 @@ class ToolRegistry:
             'list_holdings': ToolSchema('list_holdings', {'portfolio_id': str}),
             'value_portfolio': ToolSchema('value_portfolio',
                                           {'portfolio_id': str, 'as_of': str, 'source': str}),
+            'intraday_quote': ToolSchema('intraday_quote', {'portfolio_id': str, 'as_of': str}),
+            'dated_nav': ToolSchema('dated_nav', {'portfolio_id': str, 'as_of': str}),
         }
 
     def allowed_names(self):
@@ -65,14 +72,16 @@ class ToolRegistry:
         """Run a validated read-only tool. Identity comes from the AuthContext only."""
         if name == 'list_holdings':
             return service.holdings(context, args['portfolio_id'])
-        if name == 'value_portfolio':
+        if name == 'value_portfolio' or name in FIXED_SOURCE_TOOLS:
             from datetime import datetime
             try:
                 as_of = datetime.fromisoformat(args['as_of'])
             except (TypeError, ValueError) as exc:
                 raise ProposalRejected('as_of must be an ISO-8601 timestamp', name=name) from exc
+            # intraday_quote / dated_nav use a fixed source; only value_portfolio takes one.
+            source = FIXED_SOURCE_TOOLS.get(name) or args['source']
             return service.value_portfolio(
-                context, args['portfolio_id'], as_of=as_of, source=args['source'])
+                context, args['portfolio_id'], as_of=as_of, source=source)
         raise ProposalRejected('Tool is not executable', name=name)
 
 
