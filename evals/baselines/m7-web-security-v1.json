@@ -1,0 +1,129 @@
+{
+  "suite": "m7-web-security-baseline-v1",
+  "policy_version": "m1-v1",
+  "dataset_sha256": "71bde356d906bfad50102614b5288766fb6894f02208b70b03329f3818e2d5c3",
+  "total": 20,
+  "passed": 20,
+  "results": [
+    {
+      "id": "m7-001",
+      "expected": "loopback_only",
+      "observed": "loopback_only",
+      "passed": true
+    },
+    {
+      "id": "m7-002",
+      "expected": "double_override_required",
+      "observed": "double_override_required",
+      "passed": true
+    },
+    {
+      "id": "m7-003",
+      "expected": "generic_401",
+      "observed": "generic_401",
+      "passed": true
+    },
+    {
+      "id": "m7-004",
+      "expected": "generic_401",
+      "observed": "generic_401",
+      "passed": true
+    },
+    {
+      "id": "m7-005",
+      "expected": "generic_401",
+      "observed": "generic_401",
+      "passed": true
+    },
+    {
+      "id": "m7-006",
+      "expected": "generic_401",
+      "observed": "generic_401",
+      "passed": true
+    },
+    {
+      "id": "m7-007",
+      "expected": "session_identity_only",
+      "observed": "session_identity_only",
+      "passed": true
+    },
+    {
+      "id": "m7-008",
+      "expected": "forbidden_no_effect",
+      "observed": "forbidden_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m7-009",
+      "expected": "rejected_no_effect",
+      "observed": "rejected_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m7-010",
+      "expected": "rejected",
+      "observed": "rejected",
+      "passed": true
+    },
+    {
+      "id": "m7-011",
+      "expected": "throttled_per_peer",
+      "observed": "throttled_per_peer",
+      "passed": true
+    },
+    {
+      "id": "m7-012",
+      "expected": "rate_limited",
+      "observed": "rate_limited",
+      "passed": true
+    },
+    {
+      "id": "m7-013",
+      "expected": "identical_404",
+      "observed": "identical_404",
+      "passed": true
+    },
+    {
+      "id": "m7-014",
+      "expected": "headers_present",
+      "observed": "headers_present",
+      "passed": true
+    },
+    {
+      "id": "m7-015",
+      "expected": "no_private_data",
+      "observed": "no_private_data",
+      "passed": true
+    },
+    {
+      "id": "m7-016",
+      "expected": "rejected_all",
+      "observed": "rejected_all",
+      "passed": true
+    },
+    {
+      "id": "m7-017",
+      "expected": "invalid_number_no_effect",
+      "observed": "invalid_number_no_effect",
+      "passed": true
+    },
+    {
+      "id": "m7-018",
+      "expected": "no_cross_user_data",
+      "observed": "no_cross_user_data",
+      "passed": true
+    },
+    {
+      "id": "m7-019",
+      "expected": "generic_500",
+      "observed": "generic_500",
+      "passed": true
+    },
+    {
+      "id": "m7-020",
+      "expected": "total_withheld_until_complete",
+      "observed": "total_withheld_until_complete",
+      "passed": true
+    }
+  ]
+}

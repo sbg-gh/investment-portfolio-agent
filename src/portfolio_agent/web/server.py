@@ -40,6 +40,10 @@ class _NoModel:
         raise RuntimeError('no model configured')
 
 
+def _print_line(line):
+    print(line, flush=True)
+
+
 def _ttl_hours(text):
     try:
         value = float(text)
@@ -97,8 +101,9 @@ def _backend(db, model, config, valuation_source):
 
 
 def build_asgi(db, *, port, model, valuation_source, static_dir=STATIC_DIR, allowed_hosts=(),
-               config=None, keepalive=KEEPALIVE_SECONDS, log=lambda line: print(line, flush=True)):
+               config=None, keepalive=KEEPALIVE_SECONDS, log=None):
     config = config or ModelConfig.from_env(env={})
+    log = _print_line if log is None else log
     worker = Worker(lambda: _backend(db, model, config, valuation_source))
     app = App(worker, Policy(port, allowed_hosts), SessionStore(), RateLimiter(), LoginThrottle(),
               routes=default_routes(), log=log)
@@ -106,11 +111,11 @@ def build_asgi(db, *, port, model, valuation_source, static_dir=STATIC_DIR, allo
 
 
 def build_server(db, *, host, port, model, valuation_source, static_dir=STATIC_DIR,
-                 allowed_hosts=(), config=None, keepalive=KEEPALIVE_SECONDS):
+                 allowed_hosts=(), config=None, keepalive=KEEPALIVE_SECONDS, log=None):
     import uvicorn
     asgi = build_asgi(db, port=port, model=model, valuation_source=valuation_source,
                       static_dir=static_dir, allowed_hosts=allowed_hosts, config=config,
-                      keepalive=keepalive)
+                      keepalive=keepalive, log=log)
     # Transport only: no access log, no Server header, no proxy header trust, bounded headers
     # and concurrency, no websockets. Our own payload-free log line is the only request log.
     settings = uvicorn.Config(asgi, host=host, port=port, access_log=False, server_header=False,

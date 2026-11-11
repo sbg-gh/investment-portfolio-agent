@@ -130,7 +130,7 @@ class WiringTests(unittest.TestCase):
         run_cli('create-user', 'alice', '--db', db)
         token = json.loads(run_cli('issue-credential', 'alice', '--db', db)[1])['token']
         asgi = server.build_asgi(db, port=8765, model=None, valuation_source='operator-entered',
-                                 static_dir=Path(tmp.name) / 'none')
+                                 static_dir=Path(tmp.name) / 'none', log=lambda line: None)
         self.addCleanup(asgi.close)
         driver = Driver(asgi)
         status, _, body = driver.call('POST', '/api/session', body=json.dumps({'token': token}).encode(),
@@ -170,7 +170,7 @@ class LoopbackServerTests(unittest.TestCase):
         cls.server, cls.asgi = server.build_server(
             cls.db, host='127.0.0.1', port=cls.port, model=cls.model,
             valuation_source='operator-entered', static_dir=Path(cls.tmp.name) / 'none',
-            keepalive=0.1)
+            keepalive=0.1, log=lambda line: None)
         cls.thread = threading.Thread(target=cls.server.run, daemon=True)
         cls.thread.start()
         deadline = time.time() + 10

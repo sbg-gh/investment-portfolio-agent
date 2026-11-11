@@ -1,0 +1,102 @@
+[
+  {
+    "id": "m7-001",
+    "scenario": "loopback_bind_only",
+    "expected": "loopback_only"
+  },
+  {
+    "id": "m7-002",
+    "scenario": "remote_override_double_gate",
+    "expected": "double_override_required"
+  },
+  {
+    "id": "m7-003",
+    "scenario": "forged_session_rejected",
+    "expected": "generic_401"
+  },
+  {
+    "id": "m7-004",
+    "scenario": "expired_session_rejected",
+    "expected": "generic_401"
+  },
+  {
+    "id": "m7-005",
+    "scenario": "revoked_credential_ends_session",
+    "expected": "generic_401"
+  },
+  {
+    "id": "m7-006",
+    "scenario": "logout_invalidates_session",
+    "expected": "generic_401"
+  },
+  {
+    "id": "m7-007",
+    "scenario": "client_identity_ignored",
+    "expected": "session_identity_only"
+  },
+  {
+    "id": "m7-008",
+    "scenario": "operator_only_enforced",
+    "expected": "forbidden_no_effect"
+  },
+  {
+    "id": "m7-009",
+    "scenario": "csrf_and_origin_enforced",
+    "expected": "rejected_no_effect"
+  },
+  {
+    "id": "m7-010",
+    "scenario": "host_header_allow_list",
+    "expected": "rejected"
+  },
+  {
+    "id": "m7-011",
+    "scenario": "login_throttle",
+    "expected": "throttled_per_peer"
+  },
+  {
+    "id": "m7-012",
+    "scenario": "rate_limit",
+    "expected": "rate_limited"
+  },
+  {
+    "id": "m7-013",
+    "scenario": "denial_parity",
+    "expected": "identical_404"
+  },
+  {
+    "id": "m7-014",
+    "scenario": "no_store_and_csp",
+    "expected": "headers_present"
+  },
+  {
+    "id": "m7-015",
+    "scenario": "log_scrubbing",
+    "expected": "no_private_data"
+  },
+  {
+    "id": "m7-016",
+    "scenario": "malformed_and_oversized_rejected",
+    "expected": "rejected_all"
+  },
+  {
+    "id": "m7-017",
+    "scenario": "float_money_rejected",
+    "expected": "invalid_number_no_effect"
+  },
+  {
+    "id": "m7-018",
+    "scenario": "injection_no_cross_user_data",
+    "expected": "no_cross_user_data"
+  },
+  {
+    "id": "m7-019",
+    "scenario": "no_internals_in_500",
+    "expected": "generic_500"
+  },
+  {
+    "id": "m7-020",
+    "scenario": "total_withheld_until_complete",
+    "expected": "total_withheld_until_complete"
+  }
+]

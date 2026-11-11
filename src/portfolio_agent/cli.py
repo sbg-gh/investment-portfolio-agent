@@ -109,8 +109,10 @@ def main():
             from .m5a_evaluation import evaluate as evaluate_m5a
             from .m5b_evaluation import evaluate as evaluate_m5b
             from .m6_evaluation import evaluate as evaluate_m6
+            from .web_security_evaluation import evaluate as evaluate_web_security
             reports = [evaluate_safety(), evaluate_import(), evaluate_m2(),
-                       evaluate_m3(), evaluate_m4(), evaluate_m5a(), evaluate_m5b(), evaluate_m6()]
+                       evaluate_m3(), evaluate_m4(), evaluate_m5a(), evaluate_m5b(), evaluate_m6(),
+                       evaluate_web_security()]
         else:
             from .valuation_evaluation import evaluate
             reports = [evaluate()]

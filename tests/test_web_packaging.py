@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BLOCKED = ('uvicorn', 'h11', 'click', 'starlette', 'fastapi', 'pydantic', 'anyio')
 IMPORTS = ('portfolio_agent', 'portfolio_agent.cli', 'portfolio_agent.services',
-           'portfolio_agent.chat', 'portfolio_agent.evaluation', 'portfolio_agent.m6_evaluation',
+           'portfolio_agent.chat', 'portfolio_agent.evaluation', 'portfolio_agent.m6_evaluation', 'portfolio_agent.web_security_evaluation',
            'portfolio_agent.valuation_evaluation')
 
 

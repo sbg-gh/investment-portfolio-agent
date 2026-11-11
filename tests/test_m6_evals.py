@@ -56,7 +56,7 @@ class M6EvalTests(unittest.TestCase):
         with mock.patch('sys.argv', ['portfolio_agent', 'eval']), contextlib.redirect_stdout(out):
             cli.main()
         reports = json.loads(out.getvalue())
-        self.assertEqual(len(reports), 8)
+        self.assertEqual(len(reports), 9)
         self.assertEqual(reports[7]['suite'], 'm6-paper-baseline-v1')
         self.assertTrue(all(r['passed'] == r['total'] for r in reports))
         cases = [{**c, 'expected': 'deliberately-wrong'} for c in m6_evaluation.load_cases()]
