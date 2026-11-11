@@ -15,7 +15,7 @@ from portfolio_agent.web.routes import default_routes
 from portfolio_agent.web.policy import Policy
 from portfolio_agent.web.ratelimit import LoginThrottle, RateLimiter
 from portfolio_agent.web.sessions import SessionStore
-from portfolio_agent.web.worker import Direct
+from portfolio_agent.web.worker import Direct, Worker
 
 PORT = 8765
 HOST = f'127.0.0.1:{PORT}'
@@ -87,25 +87,37 @@ class Client:
         return reply
 
 
-def make_env(extra_routes=(), *, full=False, replies=(), **limits):
-    store = Store()
-    for user in ('alice', 'bob', 'admin'):
-        store.create_user(user)
+def make_env(extra_routes=(), *, full=False, replies=(), worker=False, **limits):
+    """worker=True builds the Store on a dedicated thread (needed when the caller is threaded)."""
     clock = Clock()
-    auth = Authenticator(store, clock=clock)
-    tokens = {u: auth.provision(u, role='operator' if u == 'admin' else 'user', ttl_seconds=100000)
-              for u in ('alice', 'bob', 'admin')}
+    model = ScriptedModel(replies)
+    built = {}
+
+    def build():
+        store = Store()
+        for user in ('alice', 'bob', 'admin'):
+            store.create_user(user)
+        auth = Authenticator(store, clock=clock)
+        built['tokens'] = {u: auth.provision(u, role='operator' if u == 'admin' else 'user',
+                                             ttl_seconds=100000) for u in ('alice', 'bob', 'admin')}
+        service = PortfolioService(store, auth, RegistryValidator(store))
+        chat = ChatService(service, model, config=ModelConfig.from_env(env={}), clock=lambda: NOW,
+                           valuation_source=SOURCE, on_model_error='facts')
+        return Backend(store, auth, service, OperatorService(service), chat)
+    if worker:
+        executor = Worker(build)
+        backend = None
+    else:
+        backend = build()
+        executor = Direct(backend)
     sessions = SessionStore(clock=clock)
     logs = []
-    service = PortfolioService(store, auth, RegistryValidator(store))
-    model = ScriptedModel(replies)
-    chat = ChatService(service, model, config=ModelConfig.from_env(env={}), clock=lambda: NOW,
-                       valuation_source=SOURCE, on_model_error='facts')
-    backend = Backend(store, auth, service, OperatorService(service), chat)
     routes = (list(default_routes()) if full else list(session_routes())) + list(extra_routes)
-    app = App(Direct(backend), Policy(PORT), sessions,
+    app = App(executor, Policy(PORT), sessions,
               RateLimiter(clock=clock, capacity=limits.get('capacity', 1000), refill_per_second=1000),
               LoginThrottle(clock=clock, per_peer=limits.get('per_peer', 5), global_limit=limits.get('global_limit', 50)),
               routes=routes, log=logs.append)
-    return SimpleNamespace(store=store, auth=auth, tokens=tokens, sessions=sessions, clock=clock,
-                           app=app, logs=logs, model=model, backend=backend, client=lambda **kw: Client(app, **kw))
+    return SimpleNamespace(store=backend.store if backend else None,
+                           auth=backend.auth if backend else None, tokens=built['tokens'],
+                           sessions=sessions, clock=clock, app=app, logs=logs, model=model,
+                           backend=backend, executor=executor, client=lambda **kw: Client(app, **kw))
