@@ -24,6 +24,7 @@ class SessionStore:
         self._clock = clock
         self._idle = idle
         self._absolute = absolute
+        self.absolute = absolute
         self._max = max_sessions
         self._sessions = {}
         self._lock = threading.Lock()
