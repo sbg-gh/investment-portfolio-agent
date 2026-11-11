@@ -62,15 +62,19 @@ class AsgiApp:
         except OSError:
             return  # client went away mid-write
 
+    def close(self):
+        self._pool.shutdown(wait=False, cancel_futures=True)
+        if self._on_shutdown:
+            self._on_shutdown()
+            self._on_shutdown = None
+
     async def _lifespan(self, receive, send):
         while True:
             message = await receive()
             if message['type'] == 'lifespan.startup':
                 await send({'type': 'lifespan.startup.complete'})
             elif message['type'] == 'lifespan.shutdown':
-                self._pool.shutdown(wait=False, cancel_futures=True)
-                if self._on_shutdown:
-                    self._on_shutdown()
+                self.close()
                 await send({'type': 'lifespan.shutdown.complete'})
                 return
 
