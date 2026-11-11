@@ -72,6 +72,7 @@ class Route:
     private: bool = False
     unsafe: bool = False
     operator: bool = False
+    stream: bool = False  # handler validates and returns produce(); produce() runs later (SSE)
 
     @property
     def segments(self):
@@ -92,6 +93,37 @@ def match_path(route, path):
         elif wanted != got:
             return None
     return params
+
+
+def sse(name, payload):
+    """One server-sent event. JSON escapes CR/LF, so data can never forge another field."""
+    return b'event: ' + name.encode('ascii') + b'\ndata: ' + wire.dumps(payload) + b'\n\n'
+
+
+class Stream:
+    """A validated, authorised streaming response. Headers are final; the body is produced later.
+
+    run() blocks (it uses the single Store worker), so an async adapter calls it in a thread and
+    writes the staged `status` event and keep-alive comments while it runs.
+    """
+    def __init__(self, app, request, headers, produce):
+        self.status, self.headers = 200, headers
+        self._app, self._request, self._produce = app, request, produce
+
+    def first(self):
+        return sse('status', {'state': 'started'})
+
+    def run(self):
+        try:
+            return [sse(name, payload) for name, payload in self._produce()]
+        except WorkerBusy:
+            code = 'busy'
+        except PermissionError:
+            code = 'not_found'
+        except Exception as exc:
+            self._app._log(logsafe.error_line(exc, self._request.request_id))
+            return [sse('error', {'error': 'internal', 'request_id': self._request.request_id})]
+        return [sse('error', {'error': code})]
 
 
 # --- session routes -------------------------------------------------------------------------
@@ -155,12 +187,29 @@ class App:
 
     # public entry point ---------------------------------------------------------------------
     def handle(self, request):
+        """Complete response. A Stream is collected into one text/event-stream body."""
+        outcome = self.begin(request)
+        if not isinstance(outcome, Stream):
+            return outcome
+        body = outcome.first() + b''.join(outcome.run())
+        return Response(outcome.status, outcome.headers, body)
+
+    def begin(self, request):
+        """Run every check and the handler's validation. Returns a Response or a Stream."""
         started = time.perf_counter()
         request.app = self
         request.request_id = str(uuid4())
         try:
             route = self._dispatch_checks(request)
             status, payload, extra = self._execute(route, request)
+            if route.stream:
+                headers = ([('content-type', 'text/event-stream; charset=utf-8')]
+                           + policy.response_headers(api=True)
+                           + [('x-request-id', request.request_id)])
+                self._log(logsafe.access_line(request.method, request.template, 200,
+                                              (time.perf_counter() - started) * 1000,
+                                              request.request_id))
+                return Stream(self, request, headers, status)
         except PolicyError as exc:
             status, payload, extra = exc.status, {'error': exc.code}, []
         except wire.WireError as exc:
@@ -233,6 +282,8 @@ class App:
                 policy.check_content_type(request.header('content-type'))
             request.json = wire.loads(request.body)
         result = route.handler(request)
+        if route.stream:
+            return result, None, []
         status, payload = result[0], result[1]
         return status, payload, (result[2] if len(result) > 2 else [])
 
