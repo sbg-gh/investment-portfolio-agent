@@ -1,10 +1,17 @@
 """In-process client: dispatches requests through the framework-neutral web core (stdlib only)."""
 import json as jsonlib
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from portfolio_agent.auth import Authenticator
+from portfolio_agent.chat import ChatService
 from portfolio_agent.core import Store
+from portfolio_agent.model import ModelConfig, ScriptedModel
+from portfolio_agent.registry_validator import RegistryValidator
+from portfolio_agent.services import OperatorService, PortfolioService
 from portfolio_agent.web.app import App, Request, Route, session_routes
+from portfolio_agent.web.backend import Backend
+from portfolio_agent.web.routes import default_routes
 from portfolio_agent.web.policy import Policy
 from portfolio_agent.web.ratelimit import LoginThrottle, RateLimiter
 from portfolio_agent.web.sessions import SessionStore
@@ -13,6 +20,8 @@ from portfolio_agent.web.worker import Direct
 PORT = 8765
 HOST = f'127.0.0.1:{PORT}'
 ORIGIN = f'http://{HOST}'
+NOW = datetime(2026, 11, 6, 21, tzinfo=timezone.utc)
+SOURCE = 'operator-entered'
 
 
 class Clock:
@@ -78,7 +87,7 @@ class Client:
         return reply
 
 
-def make_env(extra_routes=(), **limits):
+def make_env(extra_routes=(), *, full=False, replies=(), **limits):
     store = Store()
     for user in ('alice', 'bob', 'admin'):
         store.create_user(user)
@@ -88,9 +97,15 @@ def make_env(extra_routes=(), **limits):
               for u in ('alice', 'bob', 'admin')}
     sessions = SessionStore(clock=clock)
     logs = []
-    app = App(Direct(SimpleNamespace(auth=auth, store=store)), Policy(PORT), sessions,
+    service = PortfolioService(store, auth, RegistryValidator(store))
+    model = ScriptedModel(replies)
+    chat = ChatService(service, model, config=ModelConfig.from_env(env={}), clock=lambda: NOW,
+                       valuation_source=SOURCE, on_model_error='facts')
+    backend = Backend(store, auth, service, OperatorService(service), chat)
+    routes = (list(default_routes()) if full else list(session_routes())) + list(extra_routes)
+    app = App(Direct(backend), Policy(PORT), sessions,
               RateLimiter(clock=clock, capacity=limits.get('capacity', 1000), refill_per_second=1000),
               LoginThrottle(clock=clock, per_peer=limits.get('per_peer', 5), global_limit=limits.get('global_limit', 50)),
-              routes=list(session_routes()) + list(extra_routes), log=logs.append)
+              routes=routes, log=logs.append)
     return SimpleNamespace(store=store, auth=auth, tokens=tokens, sessions=sessions, clock=clock,
-                           app=app, logs=logs, client=lambda **kw: Client(app, **kw))
+                           app=app, logs=logs, model=model, backend=backend, client=lambda **kw: Client(app, **kw))
