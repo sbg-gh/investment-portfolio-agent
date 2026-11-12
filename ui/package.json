@@ -8,6 +8,7 @@
     "dev": "vite",
     "lint": "eslint .",
     "test": "vitest run",
+    "e2e": "node e2e/smoke.mjs",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {

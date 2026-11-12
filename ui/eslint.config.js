@@ -17,6 +17,10 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   jsxA11y.flatConfigs.recommended,
   {
+    files: ['e2e/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', fetch: 'readonly' } },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     rules: { 'no-restricted-syntax': ['error', noHtmlInjection, noInnerHtml] },
   },
