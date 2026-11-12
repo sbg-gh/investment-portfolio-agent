@@ -298,3 +298,26 @@ class LoopbackServerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+class PreambleTests(unittest.TestCase):
+    """The opt-in prompt preamble only asks a real model for the JSON shape the unchanged M4 gate parses."""
+    def test_real_model_gets_a_json_format_preamble_and_no_model_gets_none(self):
+        self.assertIsNone(server.preamble_for(None))
+        text = server.preamble_for(object())
+        self.assertIn('JSON', text)
+        self.assertIn('"explanation"', text)
+        self.assertIn('"tool_calls": []', text)
+
+    def test_preamble_reaches_the_chat_prompt_and_default_prompt_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / 'p.db')
+            with_pre = server._backend(db, None, server.ModelConfig.from_env(env={}), 'operator-entered',
+                                       prompt_preamble='PREAMBLE-X')
+            try:
+                self.assertTrue(with_pre.chat._prompt('hi', '').startswith('PREAMBLE-X\n'))
+            finally:
+                with_pre.close()
+            without = server._backend(db, None, server.ModelConfig.from_env(env={}), 'operator-entered')
+            try:
+                self.assertTrue(without.chat._prompt('hi', '').startswith('You are a read-only'))
+            finally:
+                without.close()

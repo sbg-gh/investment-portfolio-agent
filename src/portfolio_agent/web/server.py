@@ -34,6 +34,12 @@ STATIC_DIR = Path(__file__).resolve().parent / 'static'
 MAX_TTL_HOURS = 24 * 90
 
 
+MODEL_PREAMBLE = ('Reply with ONLY one JSON object and nothing else, exactly of the form '
+                  '{"explanation": "<short plain-text answer>", "tool_calls": []}. '
+                  'Always use an empty "tool_calls": [] list.')
+def preamble_for(model):
+    """Opt-in format hint for a real model only; offline/no-model servers keep the M4 prompt unchanged."""
+    return None if model is None else MODEL_PREAMBLE
 class _NoModel:
     """Stands in when no model is configured: chat degrades to deterministic facts."""
     def generate(self, prompt, *, max_tokens):
@@ -91,12 +97,12 @@ def open_auth(db):
 
 
 # --- assembly ------------------------------------------------------------------------------
-def _backend(db, model, config, valuation_source):
+def _backend(db, model, config, valuation_source, prompt_preamble=None):
     store = Store(db)
     auth = Authenticator(store)
     service = PortfolioService(store, auth, RegistryValidator(store))
     chat = ChatService(service, model or _NoModel(), config=config, valuation_source=valuation_source,
-                       on_model_error='facts')
+                       prompt_preamble=prompt_preamble, on_model_error='facts')
     return Backend(store, auth, service, OperatorService(service), chat)
 
 
@@ -104,7 +110,7 @@ def build_asgi(db, *, port, model, valuation_source, static_dir=STATIC_DIR, allo
                config=None, keepalive=KEEPALIVE_SECONDS, log=None):
     config = config or ModelConfig.from_env(env={})
     log = _print_line if log is None else log
-    worker = Worker(lambda: _backend(db, model, config, valuation_source))
+    worker = Worker(lambda: _backend(db, model, config, valuation_source, preamble_for(model)))
     app = App(worker, Policy(port, allowed_hosts), SessionStore(), RateLimiter(), LoginThrottle(),
               routes=default_routes(), log=log)
     return AsgiApp(app, static=load_static(static_dir), keepalive=keepalive, on_shutdown=worker.close)
