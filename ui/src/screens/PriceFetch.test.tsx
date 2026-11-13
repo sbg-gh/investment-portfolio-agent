@@ -59,12 +59,19 @@ describe('PriceFetch', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
   it('starts a real press, shows progress, disables the button while running, then the per-symbol results', async () => {
-    const { user, api, container } = setup([running(1), running(2), done()]);
+    let finished = false;
+    const { user, api, container } = setup([], {
+      priceFetchStatus: () => Promise.resolve(finished ? done() : running(2)),
+    });
     await user.click(button());
     expect(api.startPriceFetch).toHaveBeenCalledWith(false);
-    await waitFor(() => expect(button().disabled).toBe(true));
-    expect((await screen.findByRole('progressbar')).getAttribute('aria-valuenow')).toMatch(/^[123]$/);
-    expect(container.textContent).toMatch(/Fetching: \d of 3/);
+    const bar = await screen.findByRole('progressbar');
+    await waitFor(() => expect(bar.textContent).toBe('Fetching: 2 of 3'));
+    expect(bar.getAttribute('aria-valuenow')).toBe('2');
+    expect(bar.getAttribute('aria-valuemax')).toBe('3');
+    expect(button().disabled).toBe(true);
+    expect(screen.queryByRole('table')).toBeNull();
+    finished = true;
     const table = await screen.findByRole('table', { name: /per-symbol results/i });
     expect(within(table).getAllByRole('row')).toHaveLength(4);
     expect(within(table).getByText('585.3000')).toBeTruthy();
