@@ -97,6 +97,22 @@ describe('Holdings', () => {
     expect(call?.[2]).toMatch(KEY);
   });
 
+  it('reuses the removal idempotency key when a removal is retried after a failure', async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    const api = fakeApi({
+      holdings: () => Promise.resolve(HOLDINGS),
+      removeHolding: () => (attempt++ === 0 ? Promise.reject(new ApiError(0, 'network')) : Promise.resolve()),
+    });
+    renderScreen(<Holdings portfolioId="p-1" />, api);
+    await user.click(await screen.findByRole('button', { name: /remove aaa/i }));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button', { name: /remove aaa/i }));
+    const calls = (api.removeHolding as unknown as { mock: { calls: string[][] } }).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.[2]).toBe(calls[0]?.[2]);
+  });
+
   it('shows a generic not-found for a foreign or missing portfolio', async () => {
     const api = fakeApi({ holdings: () => Promise.reject(new ApiError(404, 'not_found')) });
     renderScreen(<Holdings portfolioId="other" />, api);
