@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Valuation as ValuationReport, ValuationLine } from '../api/types';
 import { fakeApi } from '../test/fake-api';
 import { renderScreen } from '../test/render';
@@ -106,5 +106,52 @@ describe('Valuation', () => {
     expect(within(twin).getByText('25.00%')).toBeTruthy();
     expect(within(twin).getByText('75.00%')).toBeTruthy();
     expect(container.querySelector('svg')?.getAttribute('role')).toBe('img');
+  });
+
+  it('defaults the window to 1 day and always sends it', async () => {
+    const { api } = await run(report({}));
+    await screen.findByTestId('total');
+    expect((screen.getByLabelText(/accept prices up to/i) as HTMLSelectElement).value).toBe('1');
+    const call = (api.valuation as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call?.[2]).toBeUndefined();
+    expect(call?.[3]).toBe(1);
+  });
+
+  it('offers 1, 3, 5, 7 and 14 days and sends the chosen window', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi({ valuation: () => Promise.resolve(report({})), holdings: () => Promise.resolve(HOLDINGS) });
+    renderScreen(<Valuation portfolioId="p-1" />, api);
+    const select = await screen.findByLabelText(/accept prices up to/i);
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(
+      ['1 day', '3 days', '5 days', '7 days', '14 days']);
+    await user.selectOptions(select, '5');
+    await user.click(screen.getByRole('button', { name: /value portfolio/i }));
+    await screen.findByTestId('total');
+    const call = (api.valuation as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call?.[3]).toBe(5);
+  });
+
+  it('shows the window actually used, taken from the response policy', async () => {
+    await run(report({ policy: { price_max_age_seconds: 5 * 86400, nav_max_age_seconds: 5 * 86400 } }));
+    expect((await screen.findByTestId('window')).textContent).toMatch(/prices up to 5 days old/i);
+  });
+
+  it('says 1 day in the singular', async () => {
+    await run(report({}));
+    expect((await screen.findByTestId('window')).textContent).toMatch(/prices up to 1 day old/i);
+  });
+
+  it('mentions the window when the total is withheld', async () => {
+    const lines = [line({ security_id: 'sec-1', status: 'stale', observed_at: '2025-01-01T00:00:00+00:00' })];
+    await run(report({ status: 'stale', total: null, priced_subtotal: '100', lines,
+      policy: { price_max_age_seconds: 3 * 86400, nav_max_age_seconds: 3 * 86400 } }));
+    expect((await screen.findByTestId('total-withheld')).textContent).toMatch(/within 3 days/i);
+  });
+
+  it('lists a newly imported source in the source suggestions on first use', async () => {
+    const api = fakeApi({ sources: () => Promise.resolve(['my-prices']), holdings: () => Promise.resolve(HOLDINGS) });
+    const { container } = renderScreen(<Valuation portfolioId="p-1" />, api);
+    await screen.findByLabelText(/accept prices up to/i);
+    await vi.waitFor(() => expect(container.querySelector('datalist option[value="my-prices"]')).not.toBeNull());
   });
 });

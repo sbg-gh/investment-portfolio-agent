@@ -131,4 +131,33 @@ describe('createApi', () => {
     expect((failure as ApiError).status).toBe(409);
     expect((failure as ApiError).code).toBe('starter_instruments_missing');
   });
+  it('posts the price import as JSON with the CSRF header and surfaces file-level codes', async () => {
+    const result = {
+      dry_run: true, source: 'my-src', total_rows: 1, counts: { imported: 1 }, ignored_columns: [],
+      rows: [{ line: 2, symbol: 'SYNA', outcome: 'imported' }],
+    };
+    const { impl, calls } = fakeFetch([
+      { body: SESSION }, { body: result }, { status: 422, body: { error: 'invalid_header' } },
+    ]);
+    const api = createApi(impl);
+    await api.login('tok');
+    expect(await api.importPrices('my-src', 'symbol,date,close\n', true)).toEqual(result);
+    expect(calls[1]?.url).toBe('/api/operator/prices/import');
+    expect(calls[1]?.init.method).toBe('POST');
+    expect(new Headers(calls[1]?.init.headers).get('x-csrf-token')).toBe('csrf-token-1');
+    expect(JSON.parse(String(calls[1]?.init.body))).toEqual({
+      source: 'my-src', csv_text: 'symbol,date,close\n', dry_run: true,
+    });
+    await expect(api.importPrices('my-src', 'x', false)).rejects.toMatchObject({ status: 422, code: 'invalid_header' });
+  });
+  it('adds max_age_days to the valuation query only when given', async () => {
+    const body = { total: null, priced_subtotal: '0', lines: [], policy: {} };
+    const { impl, calls } = fakeFetch([{ body: SESSION }, { body }, { body }]);
+    const api = createApi(impl);
+    await api.login('t');
+    await api.valuation('p1', 'src');
+    await api.valuation('p1', 'src', undefined, 5);
+    expect(calls[1]?.url).toBe('/api/portfolios/p1/valuation?source=src');
+    expect(calls[2]?.url).toBe('/api/portfolios/p1/valuation?source=src&max_age_days=5');
+  });
 });

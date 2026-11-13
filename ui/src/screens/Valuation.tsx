@@ -7,6 +7,9 @@ import { formatBps, formatGrouped, ratioBps } from '../money/decimal';
 import { hrefFor } from '../router';
 
 const DEFAULT_SOURCE = 'operator-entered';
+const WINDOW_CHOICES = [1, 3, 5, 7, 14] as const;
+const DEFAULT_WINDOW = 1;
+const plural = (days: number) => `${days} ${days === 1 ? 'day' : 'days'}`;
 const STATUS_LABEL = { fresh: '✓ Fresh', stale: '⚠ Stale', missing: '✕ Missing' } as const;
 
 function age(observedAt: string, asOf: string): string {
@@ -55,6 +58,7 @@ export function Valuation({ portfolioId }: { portfolioId: string }) {
   const [source, setSource] = useState(DEFAULT_SOURCE);
   const [sources, setSources] = useState<string[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [windowDays, setWindowDays] = useState<number>(DEFAULT_WINDOW);
   const [report, setReport] = useState<Report | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,7 +83,7 @@ export function Valuation({ portfolioId }: { portfolioId: string }) {
     setBusy(true);
     setProblem(null);
     try {
-      const next = await api.valuation(portfolioId, source.trim());
+      const next = await api.valuation(portfolioId, source.trim(), undefined, windowDays);
       setReport(next);
       announce(next.status === 'complete' ? 'Valuation complete' : 'Valuation loaded; total withheld');
     } catch (error) {
@@ -93,6 +97,8 @@ export function Valuation({ portfolioId }: { portfolioId: string }) {
   const names = new Map(holdings.map((h) => [h.security_id, h.symbol ?? h.security_id]));
   const missing = report?.lines.filter((l) => l.status === 'missing').length ?? 0;
   const stale = report?.lines.filter((l) => l.status === 'stale').length ?? 0;
+  // The window shown is the one the server reports it used, not the local selection.
+  const usedDays = report ? Math.round((report.policy.price_max_age_seconds ?? 0) / 86400) : 0;
 
   return (
     <Page title="Valuation">
@@ -105,12 +111,20 @@ export function Valuation({ portfolioId }: { portfolioId: string }) {
         <label htmlFor="source">Observation source</label>
         <input id="source" list={listId} value={source} required onChange={(e) => setSource(e.target.value)} />
         <datalist id={listId}>{sources.map((s) => <option key={s} value={s} />)}</datalist>
+        <label htmlFor="window">Accept prices up to</label>
+        <select id="window" value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}>
+          {WINDOW_CHOICES.map((d) => <option key={d} value={d}>{plural(d)}</option>)}
+        </select>
+        <p className="hint">
+          A Friday close is about 65 hours old on Monday morning, so choose 3 days or more over a weekend.
+        </p>
         <button type="submit" disabled={busy}>Value portfolio</button>
       </form>
       <Problem message={problem} />
       {report && (
         <section aria-labelledby="result-heading">
           <h2 id="result-heading">Result</h2>
+          <p data-testid="window">Prices up to {plural(usedDays)} old</p>
           {report.status === 'complete' && report.total !== null ? (
             <p data-testid="total" className="total">
               Total: {report.currency} {formatGrouped(report.total)} <span className="asof">as of {report.market_as_of}</span>
@@ -118,7 +132,7 @@ export function Valuation({ portfolioId }: { portfolioId: string }) {
           ) : (
             <>
               <p data-testid="total-withheld" className="withheld">
-                Total withheld: {missing} missing, {stale} stale. A total is not shown unless every holding is fresh.
+                Total withheld: {missing} missing, {stale} stale. A total is not shown unless every holding has a price within {plural(usedDays)}.
               </p>
               <p data-testid="subtotal">
                 Partial subtotal (priced lines only): {report.currency} {formatGrouped(report.priced_subtotal)}{' '}

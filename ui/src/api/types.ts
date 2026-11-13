@@ -55,3 +55,15 @@ export type ChatEvent =
 
 export type StarterInstrumentsResult = { registered: number; already_present: number; symbols: number };
 export type SamplePortfolioResult = { id: string; name: string; created: boolean };
+export type PriceOutcome =
+  | 'imported' | 'unchanged' | 'corrected' | 'conflict' | 'unknown_symbol' | 'invalid_value'
+  | 'invalid_date' | 'future_date' | 'duplicate_row' | 'unsupported_kind' | 'invalid_format';
+export type PriceImportRow = { line: number; symbol: string | null; outcome: PriceOutcome };
+export type PriceImportResult = {
+  dry_run: boolean;
+  source: string;
+  total_rows: number;
+  counts: Partial<Record<PriceOutcome, number>>;
+  ignored_columns: string[];
+  rows: PriceImportRow[];
+};

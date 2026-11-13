@@ -1,6 +1,6 @@
 import { parseSse } from './sse';
 import type {
-  ChatEvent, ChatRequest, Holding, Portfolio, Receipt, SamplePortfolioResult, SessionInfo,
+  ChatEvent, ChatRequest, Holding, Portfolio, PriceImportResult, Receipt, SamplePortfolioResult, SessionInfo,
   StarterInstrumentsResult, Valuation,
 } from './types';
 
@@ -114,9 +114,10 @@ export function createApi(fetchImpl: typeof fetch = (...args) => fetch(...args))
         idempotency_key,
       }),
     receipts: (id: string) => json<Receipt[]>('GET', `${portfolio(id)}/receipts`),
-    valuation(id: string, source: string, asOf?: string): Promise<Valuation> {
+    valuation(id: string, source: string, asOf?: string, maxAgeDays?: number): Promise<Valuation> {
       const query = new URLSearchParams({ source });
       if (asOf) query.set('as_of', asOf);
+      if (maxAgeDays !== undefined) query.set('max_age_days', String(maxAgeDays));
       // URLSearchParams encodes spaces as '+'; the server needs strict percent-encoding.
       return json<Valuation>('GET', `${portfolio(id)}/valuation?${query.toString().replace(/\+/g, '%20')}`);
     },
@@ -126,6 +127,8 @@ export function createApi(fetchImpl: typeof fetch = (...args) => fetch(...args))
     registerStarterInstruments: () =>
       json<StarterInstrumentsResult>('POST', '/api/operator/starter/instruments', {}),
     createSamplePortfolio: () => json<SamplePortfolioResult>('POST', '/api/starter/sample-portfolio', {}),
+    importPrices: (source: string, csv_text: string, dry_run: boolean) =>
+      json<PriceImportResult>('POST', '/api/operator/prices/import', { source, csv_text, dry_run }),
     addObservation: (observation: OperatorObservation) =>
       json<{ observation_id: string }>('POST', '/api/operator/observations', { ...observation }),
     async *chat(request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
