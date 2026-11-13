@@ -92,7 +92,7 @@ class FetchRouteTests(FetchWebBase):
         self.assertEqual(done['result']['counts'], {'imported': 2})
         self.assertEqual({s['symbol']: s['outcome'] for s in done['result']['symbols']},
                          {'SYNA': 'imported', 'SYNB': 'imported'})
-        self.assertEqual(done['progress'], {'done': 2, 'total': 2})
+        self.assertEqual(done['progress'], {'done': 2, 'planned': 2})
         self.assertEqual(self.count('market_observations'), 4)
         self.assertEqual(self.c['alice'].request('GET', '/api/sources').json(), ['yahoo-chart'])
         again = self.wait_done(self.start().json()['fetch_id'])

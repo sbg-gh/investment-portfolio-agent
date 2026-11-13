@@ -41,7 +41,7 @@ class FetchManager:
                 raise WireError('busy', 409)
             fetch_id = uuid4().hex
             self._record = {'fetch_id': fetch_id, 'owner': user_id, 'state': 'running', 'dry_run': dry_run,
-                            'progress': {'done': 0, 'total': 0}, 'started_at': _now(),
+                            'progress': {'done': 0, 'planned': 0}, 'started_at': _now(),
                             'finished_at': None, 'result': None, 'error': None}
             self._thread = threading.Thread(target=self._run, args=(self._record, credential_id, dry_run),
                                             daemon=True, name='portfolio-agent-price-fetch')
@@ -73,7 +73,7 @@ class FetchManager:
     def _progress(self, record):
         def update(done, total):
             with self._lock:
-                record['progress'] = {'done': done, 'total': total}
+                record['progress'] = {'done': done, 'planned': total}
         return update
     def _finish(self, record, state, result=None, error=None):
         with self._lock:
@@ -89,7 +89,7 @@ class FetchManager:
             targets = self._executor.submit(lambda b: _as_operator(
                 b, credential_id, lambda ctx: b.ops.price_fetch_targets(ctx)))
             with self._lock:
-                record['progress'] = {'done': 0, 'total': len(targets)}
+                record['progress'] = {'done': 0, 'planned': len(targets)}
             result = price_fetch.run_press(targets, ingest, dry_run=dry_run, transport=self._transport,
                                            clock=self._clock, sleeper=self._sleeper, rng=self._rng,
                                            should_stop=self._stop.is_set, on_progress=self._progress(record))
