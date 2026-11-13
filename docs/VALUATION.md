@@ -18,7 +18,7 @@ Observations are shared public data; snapshots contain private quantities and va
 
 Timestamps must be timezone-aware and normalize to UTC. Fetch time cannot precede observation time. Stocks and ETFs require `price`; mutual funds require `nav`. Unknown securities, non-USD data, negative/nonfinite numbers, floats and missing sources are rejected. Zero is a legitimate known value, distinct from missing data. Values and quantities used for valuation support up to 28 coefficient digits, 12 fractional places, and a 19-digit integer magnitude; out-of-range values fail explicitly. Decimal multiplication and addition use a fixed 80-digit local context, independent of ambient precision. No cent rounding is applied in the domain result.
 
-An exact repeated observation returns the same content-derived ID. Conflicting values with the same security/source/observed/fetched/basis identity are rejected. Corrections require a distinct fetch timestamp. That preserves what was known at each cutoff.
+An exact repeated observation returns the same content-derived ID. Conflicting values with the same security/source/observed/fetched/basis identity are rejected. Corrections require a distinct fetch timestamp. That preserves what was known at each cutoff. The CSV price import (docs/UI.md) uses this: `observed_at` is 16:00 America/New_York of the session date converted to UTC, `fetched_at` is the import time, and a changed value is written as a new observation with the later `fetched_at` (`corrected`), so a valuation at an earlier cutoff still sees the old value.
 
 Selection uses one explicit source and the appropriate basis. Both observation time and fetch time must be at or before the cutoff. The latest observed time wins, then latest fetch time, then ID. There is no silent fallback to another provider and no use of data fetched after the cutoff.
 
@@ -34,7 +34,7 @@ Each line contains quantity, kind, basis, status, unit value, market value, obse
 
 `priced_subtotal` sums all available values, INCLUDING stale values; it is never a substitute for a complete total. Missing holdings are excluded from that subtotal rather than assigned a zero price. An empty portfolio returns a complete total of zero.
 
-Default freshness windows are 24 elapsed hours for price and 72 elapsed hours for NAV, inclusive at the boundary. They are explicit fixture defaults, not exchange-calendar or fund-publication rules. The caller may supply a validated FreshnessPolicy, and each snapshot records the windows. Weekend, holiday and provider-specific publication schedules remain future work. A NAV line is always labelled NAV and dated; “fresh” never means intraday executable pricing.
+Default freshness windows are 24 elapsed hours for price and 72 elapsed hours for NAV, inclusive at the boundary. They are explicit fixture defaults, not exchange-calendar or fund-publication rules. The caller may supply a validated FreshnessPolicy, and each snapshot records the windows. The valuation endpoint of the web UI accepts `max_age_days` (1 to 30): price window N days, NAV window `max(N, 3)` days, recorded in the snapshot; the total is still withheld on any stale or missing line. Weekend, holiday and provider-specific publication schedules remain future work. A NAV line is always labelled NAV and dated; “fresh” never means intraday executable pricing.
 
 ## Local synthetic example
 

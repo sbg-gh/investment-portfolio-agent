@@ -1,6 +1,6 @@
 # Local web UI (slice 7a)
 
-A browser UI for one machine: sign in with a provisioned token, manage portfolios and holdings, value them against operator-entered prices, and chat over your own recorded data. It is a local loopback listener, not a hosted multi-user service. Slice 7b (alerts, paper account, CSV ingest, membership/dead-job admin, tick-now, memory/procedure review) is planned and not implemented; see MILESTONES.md.
+A browser UI for one machine: sign in with a provisioned token, manage portfolios and holdings, value them against operator-entered prices, and chat over your own recorded data. It is a local loopback listener, not a hosted multi-user service. Slice 7b (alerts, paper account, membership/dead-job admin, tick-now, memory/procedure review) is planned and not implemented; see MILESTONES.md.
 
 ## Quick start
 
@@ -32,6 +32,31 @@ What is seeded and what is not:
 
 If a Holdings import fails because the symbol is not registered, an operator sees a link to the Operator screen with the symbol pre-filled in the registration form (`#/operator?symbol=AMD`, only for symbols of valid shape), and a non-operator is told an operator must register the instrument. Neither message shows server text.
 
+## Importing prices from a CSV
+There is no live market data, and no provider adapter was adopted (DECISIONS.md explains why). Prices come from a CSV you supply, for example a brokerage export. The app does not verify your data or its license. You are responsible for having the right to use and store what you import.
+Format (UTF-8, a BOM is tolerated, CRLF or LF, quoted fields allowed). Header-only template (the Operator screen has a "Copy template" button; no real tickers or prices ship anywhere):
+```
+symbol,date,close
+```
+- Required columns `symbol`, `date`, `close`: exact names, case-insensitive, any order, each exactly once. Other columns are ignored: only their names are reported (lowercased, at most 32 characters, at most 20 names) and their values are never stored.
+- `symbol` is trimmed and upper-cased and must already be registered (see Starter data). Unregistered symbols are rejected, never auto-registered. Mutual funds are rejected (`unsupported_kind`): NAV import is not supported.
+- `date` is `YYYY-MM-DD` only and means the 16:00 America/New_York close of that session date, stored as UTC (21:00Z in winter, 20:00Z in summer). There is no holiday calendar: weekend and holiday dates are accepted as given, and early-close days are still treated as 16:00. A date whose 16:00 close is later than now is `future_date`.
+- `close` is the raw close for that session as a plain decimal such as `123.45`. Thousands separators, `$`, exponents, signs, NaN and infinity are `invalid_format`; zero and values over 12 fractional digits, 28 digits or the magnitude limit are `invalid_value`. Adjusted closes are not distinguished: import raw closes.
+- Limits: 1 MiB and 10,000 data rows per file. The web route also inherits the 65536-byte request body cap, which is about 2,000 rows (the screen refuses files over 60 KB); use the `import-prices` command (OPERATIONS.md) for larger files.
+Flow on the Operator screen ("Import prices from CSV"): enter a price list name (the observation source, 1 to 64 characters from letters, digits, `.`, `_`, `-`, starting with a letter or digit), choose the file, press Validate (a dry run that writes no observations), read the per-row table, then press Import. Import stays disabled until the identical name and file text were validated; the server re-validates anyway. Valid rows are imported in one transaction; rejected rows are listed and never block them.
+Result codes per row: `imported` (Added), `unchanged` (Already present: the latest value for that security, source and session already equals it, so re-importing a file changes nothing), `corrected` (the value differs from the latest one; written as a new observation with the import time as `fetched_at`, the old one is kept, and the row is marked with a text marker), `conflict` (not written; only possible with an identical injected clock), `unknown_symbol`, `invalid_value`, `invalid_date`, `future_date`, `duplicate_row` (every occurrence of a repeated symbol and date is rejected), `unsupported_kind`, `invalid_format`. File-level errors return 422 `{"error": code}` with `invalid_source`, `invalid_encoding`, `file_too_large`, `too_many_rows`, `empty_file` (including a header-only file), `invalid_header`, `invalid_csv` or `timezone_unavailable`. Results contain only line numbers, symbols and codes, never file text, values or server messages, and the request log line is unchanged.
+After a successful import the source appears in `/api/sources`, so the Valuation screen offers it on first use.
+## Freshness window on the valuation screen
+`GET .../valuation?source=&as_of=&max_age_days=N` accepts digits only, 1 to 30 (anything else is 422 `invalid_field`, a repeated parameter is 422 `invalid_query`). The price window becomes N days and the NAV window `max(N, 3)` days; without the parameter the default stays 24 h for prices and 72 h for NAV. The screen offers 1, 3, 5, 7 and 14 days (default 1), always sends the choice, and shows "Prices up to N days old" from the policy the server reports it used. The saved snapshot records that policy. The total is still withheld when any line is stale or missing. A Friday close is about 65 hours old on Monday morning, so use 3 days or more over a weekend.
+## Manual smoke test (use your own data, or the synthetic file below)
+Use a throwaway database and a free port other than the one a running server uses (the examples use 8799; pick another if it is taken):
+```sh
+python -m portfolio_agent.web create-user ops --db /tmp/csv-try.db
+python -m portfolio_agent.web issue-credential ops --db /tmp/csv-try.db --role operator   # prints the token once
+python -m portfolio_agent.web seed-starter-data --db /tmp/csv-try.db --user ops
+python -m portfolio_agent.web serve --db /tmp/csv-try.db --port 8799
+```
+Create a file with the header `symbol,date,close` and a few rows for starter symbols with obviously fake values (for example `AMD,<a date two days ago>,1.00`), then: sign in, Operator, "Import prices from CSV", name it, choose the file, Validate, Import. Open Portfolios, the sample portfolio, Valuation, pick your price list name: with 1 day it shows the total withheld, with 3 days it shows lines as fresh, and a total appears only when all 20 holdings have a price inside the window. Delete `/tmp/csv-try.db` afterwards. Never keep made-up prices for real tickers in a real database.
 ## Architecture
 
 - `portfolio_agent.web` is an optional subpackage. Core, `cli` and all nine eval suites import nothing from it, and only `web/server.py` imports uvicorn (lazily, in `serve`). The `ui` extra pins `uvicorn==0.54.0`, `h11==0.16.0`, `click==8.5.1`; `requirements/ui.lock` carries hashes.
@@ -66,11 +91,12 @@ Trusted: the OS account running the server, the database file, the operator CLI.
 | GET / POST | `/api/portfolios/{id}/holdings` | list / import `{symbol, quantity, idempotency_key}` |
 | DELETE | `/api/portfolios/{id}/holdings/{security_id}` | remove (with idempotency key) |
 | GET | `/api/portfolios/{id}/receipts` | import/remove receipts |
-| GET | `/api/portfolios/{id}/valuation?source=&as_of=` | total is `null` unless every line is fresh |
+| GET | `/api/portfolios/{id}/valuation?source=&as_of=&max_age_days=` | total is `null` unless every line is fresh; `max_age_days` 1 to 30 sets the price window (NAV `max(N,3)` days), default 24 h / 72 h |
 | GET | `/api/securities`, `/api/sources` | public instrument identity / known observation sources |
 | POST | `/api/chat` | `text/event-stream`: `status`, keep-alive comments, `evidence`, `explanation`, `proposals`, `done` (`model_status`) |
 | POST | `/api/operator/instruments`, `/api/operator/observations` | operator only |
 | POST | `/api/operator/starter/instruments` | operator only; registers the 20 starter symbols (idempotent); returns `{registered, already_present, symbols}` |
+| POST | `/api/operator/prices/import` | operator only; body `{source, csv_text, dry_run}` (`dry_run` must be a boolean); 200 `{dry_run, source, total_rows, counts, ignored_columns, rows: [{line, symbol, outcome}]}`; 422 `{error}` with a file-level code; see "Importing prices from a CSV" |
 | POST | `/api/starter/sample-portfolio` | any signed-in user; creates or returns the session user's sample (201 created, 200 existing); 409 `starter_instruments_missing` creates nothing |
 
 ## Known limits
@@ -87,7 +113,7 @@ Trusted: the OS account running the server, the database file, the operator CLI.
 - The API client's numeric-money guard uses a fixed `MONEY_KEYS` list (`quantity`, `value`, `total`, `priced_subtotal`, `market_value`, `unit_value`); a new money field added to the server must be added there too. Counts therefore must not use those names: the starter result uses `symbols`, not `total`, because a numeric `total` is rejected as numeric money.
 - The Portfolios screen decides whether to show the sample button by the portfolio name alone, so a portfolio you named `Sample portfolio (synthetic)` yourself hides the button even though the server would have created a separate sample.
 - Idempotency: the Holdings screen keeps one key per action until it succeeds, so retrying the same import or removal after a lost response reuses it. Switching to a different symbol, quantity or holding starts a new key.
-- Prices are operator-entered; there is no live market-data adapter. Sessions are in memory, so a restart logs everyone out.
+- Prices are operator-entered or CSV-imported; there is no live market-data adapter. CSV import has no holiday calendar (weekend and holiday dates are accepted as given, early closes treated as 16:00), imports raw closes only (no adjusted-close handling), does not support mutual-fund NAV, interprets dates as New York session dates, needs system time zone data for America/New_York (without it the import fails with `timezone_unavailable`; no `tzdata` dependency was added), and the web route is limited to the 65536-byte body (about 2,000 rows). Sessions are in memory, so a restart logs everyone out.
 - CI: the `ui` job installs from the hashed lock, runs Node 18 lint/test/build, `npm audit --omit=dev`, the Python suite and `cli eval`. It has no secrets and makes no third-party calls in tests; actions are pinned to commit SHAs. The browser e2e and any real-model run are local only and are not in CI.
 - Accessibility: the screens use landmarks, labels, a skip link, focus management, a polite live region, text-plus-icon status, a contrast-tested palette and jest-axe checks. WCAG conformance cannot be claimed without manual assistive-technology testing and expert review, which has not been done.
 
@@ -101,6 +127,8 @@ The frontend stays on Node 18.20.2 (a user decision). The newest vitest, vite, j
 - Frontend: `npm --prefix ui run lint`, `npm --prefix ui test` (Vitest + Testing Library + jest-axe), `npm --prefix ui run build`.
 - Browser smoke: `E2E_PYTHON=/path/to/venv-with-ui-extra/bin/python npm --prefix ui run e2e` (after `npm --prefix ui run build`). `ui/e2e/serve_for_e2e.py` starts the real server on an ephemeral loopback port with a temp database, synthetic `e2e-user`/`e2e-operator` tokens and a fixed offline reply (no Ollama). `ui/e2e/smoke.mjs` drives the installed Google Chrome through `playwright-core` 1.54.2: operator login, register two instruments, record a fresh and a ten-day-old price, create a portfolio, import a holding, see the total (3 × 10 = 30), import the stale holding and see "Total withheld: 0 missing, 1 stale" with no total, chat and see the evidence table, sign out, press Back and confirm no private data and a 401 from the API. Exit 2 means it could not run (no Chrome, UI not built, server failed) and is never reported as a pass.
 - Recorded run, 2026-11-12, macOS, Node 18.20.2, Chrome 157.0.8103.51 headless: all 8 steps passed.
+- CSV import follow-up, 2026-11-13, same environment: the smoke test now has 11 steps (adds CSV validate with one unregistered symbol, CSV import, and valuation of the imported prices withheld under the 1-day window and complete under 3 days, 3 × 12.5 + 2 × 6 = 49.5); all 11 passed.
+- Real server check, 2026-11-13 (throwaway database in /tmp, free loopback port, not the port of any other server; deleted afterwards): operator and non-operator users, `seed-starter-data`, curl with session cookie and CSRF header. A non-operator import was 403; a validate of a synthetic 7-row file (3 valid, 1 unknown symbol, 2 duplicate rows, 1 malformed close) wrote 0 observations; the import wrote 3; `/api/sources` listed the new source; valuation of that partial file was `incomplete` with no total with and without `max_age_days=30`; a synthetic file pricing all 20 starter symbols (1.00 to 20.00, two days old) was `stale` with no total by default and with `max_age_days=1`, and `complete` with total 21000 at `max_age_days=3`; `max_age_days=31` was 422 `invalid_field`. The `import-prices` command on the same database reported `corrected` 1 and `unchanged` 19 for a changed price (total then 21050), `unchanged` 20 on re-run, and exit 3 for a file with rejected rows; the server log had no symbol or source names.
 
 ## Real model smoke test (recorded exactly as run, 2026-11-12)
 
