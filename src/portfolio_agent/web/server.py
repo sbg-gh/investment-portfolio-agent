@@ -138,11 +138,12 @@ def build_asgi(db, *, port, model, valuation_source, static_dir=STATIC_DIR, allo
 
 
 def build_server(db, *, host, port, model, valuation_source, static_dir=STATIC_DIR,
-                 allowed_hosts=(), config=None, keepalive=KEEPALIVE_SECONDS, log=None):
+                 allowed_hosts=(), config=None, keepalive=KEEPALIVE_SECONDS, log=None,
+                 fetch_options=None):
     import uvicorn
     asgi = build_asgi(db, port=port, model=model, valuation_source=valuation_source,
                       static_dir=static_dir, allowed_hosts=allowed_hosts, config=config,
-                      keepalive=keepalive, log=log)
+                      keepalive=keepalive, log=log, fetch_options=fetch_options)
     # Transport only: no access log, no Server header, no proxy header trust, bounded headers
     # and concurrency, no websockets. Our own payload-free log line is the only request log.
     settings = uvicorn.Config(asgi, host=host, port=port, access_log=False, server_header=False,

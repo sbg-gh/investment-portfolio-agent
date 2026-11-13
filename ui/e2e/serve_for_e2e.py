@@ -5,6 +5,7 @@ user, one operator), and serves the real web application on an ephemeral loopbac
 offline scripted model, so no Ollama or network is needed. The first stdout line is JSON with the
 URL and the two bearer tokens; the temp directory is deleted when the process exits.
 """
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import socket
 import sys
 import tempfile
 from portfolio_agent.auth import Authenticator
+from portfolio_agent import yahoo_chart
 from portfolio_agent.core import Store
 from portfolio_agent.web.server import build_server
 
@@ -28,6 +30,17 @@ class E2EModel:
                            'tool_calls': []})
 
 
+def fake_yahoo(url, headers):
+    """Offline stand-in for Yahoo's chart endpoint: never opens a socket, so the e2e cannot reach Yahoo.
+    Two completed sessions (3 and 4 days ago, never today) with the same synthetic close for any symbol."""
+    symbol = url.split('/chart/')[1].split('?')[0]
+    days = [datetime.now(timezone.utc) - timedelta(days=n) for n in (4, 3)]
+    stamps = [int(day.replace(hour=14, minute=30, second=0, microsecond=0).timestamp()) for day in days]
+    body = {'chart': {'result': [{'meta': {'currency': 'USD', 'symbol': symbol, 'instrumentType': 'EQUITY',
+                                           'exchangeTimezoneName': 'America/New_York'},
+                                  'timestamp': stamps,
+                                  'indicators': {'quote': [{'close': [123.4567, 123.4567]}]}}], 'error': None}}
+    return yahoo_chart.HttpResponse(200, 'application/json', json.dumps(body).encode())
 def prepare(directory):
     """Create the temp database and issue one user and one operator token. Returns (db_path, tokens)."""
     root = Path(os.path.realpath(directory))
@@ -59,7 +72,8 @@ def main():
         db, tokens = prepare(directory)
         port = free_port()
         server, _ = build_server(str(db), host='127.0.0.1', port=port, model=E2EModel(),
-                                 valuation_source='operator-entered', log=lambda line: None)
+                                 valuation_source='operator-entered', log=lambda line: None,
+                                 fetch_options={'transport': fake_yahoo, 'sleeper': lambda seconds: None})
         print(json.dumps({'url': f'http://127.0.0.1:{port}', 'tokens': tokens}), flush=True)
         server.run()
     finally:

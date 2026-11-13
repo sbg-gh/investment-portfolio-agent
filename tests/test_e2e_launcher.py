@@ -35,6 +35,16 @@ class LauncherTests(unittest.TestCase):
         self.assertTrue(user.user_id.startswith('e2e-') and operator.user_id.startswith('e2e-'),
                         'ids are obviously synthetic')
 
+    def test_fake_yahoo_is_offline_and_returns_two_completed_valid_bars(self):
+        import socket
+        from datetime import datetime, timezone
+        from unittest import mock
+        from portfolio_agent import yahoo_chart
+        launcher = load_launcher()
+        with mock.patch.object(socket, 'socket', side_effect=AssertionError('network attempted')):
+            reply = launcher.fake_yahoo('https://query1.finance.yahoo.com/v8/finance/chart/ACME?range=5d&interval=1d', {})
+        code, rows = yahoo_chart.parse_chart('ACME', reply.body, datetime.now(timezone.utc))
+        self.assertEqual((code, [r[1] for r in rows]), ('ok', ['123.4567', '123.4567']))
     def test_scripted_model_replies_parse_through_the_unchanged_chat_gate(self):
         launcher = load_launcher()
         model = launcher.E2EModel()
