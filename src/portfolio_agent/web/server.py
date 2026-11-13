@@ -1,5 +1,5 @@
 """Operator CLI and server assembly: serve, create-user, issue-credential, revoke-credential,
-seed-starter-data.
+seed-starter-data, import-prices.
 
 Trusted local administration. Tokens are printed once at issuance and never logged; the database
 stores only their hash. uvicorn is imported lazily and only by `serve`, so provisioning and the
@@ -94,6 +94,12 @@ def parse_args(argv=None):
     seed.add_argument('--db', required=True)
     seed.add_argument('--user', default=None, help='existing user id who owns the sample portfolio '
                       '(trusted local administration; there is no authentication context here)')
+    prices = commands.add_parser('import-prices', help='import a CSV of closing prices '
+                                 '(symbol,date,close) as observations; trusted local administration')
+    prices.add_argument('--db', required=True)
+    prices.add_argument('--csv', required=True, help='path to the CSV file (UTF-8, up to 1 MiB)')
+    prices.add_argument('--source', required=True, help='observation source name for the whole file')
+    prices.add_argument('--dry-run', action='store_true', help='validate and report, write nothing')
     return parser.parse_args(argv)
 
 
@@ -217,8 +223,35 @@ def _seed_starter(args, env):
                       'instruments_already_present': counts['already_present'],
                       'sample_portfolio': sample}))
     return 0
+
+
+def _import_prices(args, env):
+    """Exit 0: processed, nothing rejected. 3: processed with rejected rows. 1: file-level error."""
+    from datetime import datetime, timezone
+    from .. import price_import
+    try:
+        with open(args.csv, 'rb') as handle:
+            data = handle.read(price_import.MAX_BYTES + 1)
+    except OSError:
+        print('error: invalid_file', file=sys.stderr)
+        return 1
+    store = Store(args.db)
+    try:
+        result = price_import.import_prices(store, data, args.source, dry_run=args.dry_run,
+                                            now=datetime.now(timezone.utc))
+    except price_import.FileError as exc:
+        print(f'error: {exc.code}', file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+    print(json.dumps(result))
+    accepted = sum(result['counts'].get(code, 0) for code in ('imported', 'unchanged', 'corrected'))
+    return 0 if accepted == result['total_rows'] else 3
+
+
 COMMANDS = {'serve': _serve, 'create-user': _create_user, 'issue-credential': _issue,
-            'revoke-credential': _revoke, 'seed-starter-data': _seed_starter}
+            'revoke-credential': _revoke, 'seed-starter-data': _seed_starter,
+            'import-prices': _import_prices}
 
 
 def main(argv=None, env=None):
