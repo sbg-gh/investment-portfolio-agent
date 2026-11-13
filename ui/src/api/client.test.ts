@@ -160,4 +160,19 @@ describe('createApi', () => {
     expect(calls[1]?.url).toBe('/api/portfolios/p1/valuation?source=src');
     expect(calls[2]?.url).toBe('/api/portfolios/p1/valuation?source=src&max_age_days=5');
   });
+  it('starts a Yahoo fetch with dry_run and CSRF, and polls the encoded status path', async () => {
+    const status = { state: 'running', progress: { done: 1, planned: 3 }, result: null };
+    const { impl, calls } = fakeFetch([{ body: SESSION }, { status: 202, body: { fetch_id: 'abc' } }, { body: status },
+      { status: 409, body: { error: 'busy' } }]);
+    const api = createApi(impl);
+    await api.login('tok');
+    expect(await api.startPriceFetch(true)).toEqual({ fetch_id: 'abc' });
+    expect(calls[1]?.url).toBe('/api/operator/prices/fetch');
+    expect(new Headers(calls[1]?.init.headers).get('x-csrf-token')).toBe('csrf-token-1');
+    expect(JSON.parse(String(calls[1]?.init.body))).toEqual({ dry_run: true });
+    expect(await api.priceFetchStatus('a/b c')).toEqual(status);
+    expect(calls[2]?.url).toBe('/api/operator/prices/fetch/a%2Fb%20c');
+    expect(calls[2]?.init.method).toBe('GET');
+    await expect(api.startPriceFetch(false)).rejects.toMatchObject({ status: 409, code: 'busy' });
+  });
 });

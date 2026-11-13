@@ -53,6 +53,7 @@ th, td { text-align: left; padding: 0.4rem; border-bottom: 1px solid var(--borde
 .total { font-size: 1.5rem; font-weight: 700; }
 .withheld { font-weight: 700; }
 .row-corrected { background: var(--surface); font-weight: 600; }
+.row-failed { background: var(--surface); font-weight: 600; }
 .bar { fill: var(--bar); }
 .bar-track { fill: var(--surface); }
 .log .turn { margin: 0.75rem 0; padding: 0.5rem; background: var(--surface); }

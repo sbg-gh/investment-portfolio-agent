@@ -1,6 +1,6 @@
 import { parseSse } from './sse';
 import type {
-  ChatEvent, ChatRequest, Holding, Portfolio, PriceImportResult, Receipt, SamplePortfolioResult, SessionInfo,
+  ChatEvent, ChatRequest, Holding, Portfolio, PriceFetchStatus, PriceImportResult, Receipt, SamplePortfolioResult, SessionInfo,
   StarterInstrumentsResult, Valuation,
 } from './types';
 
@@ -129,6 +129,10 @@ export function createApi(fetchImpl: typeof fetch = (...args) => fetch(...args))
     createSamplePortfolio: () => json<SamplePortfolioResult>('POST', '/api/starter/sample-portfolio', {}),
     importPrices: (source: string, csv_text: string, dry_run: boolean) =>
       json<PriceImportResult>('POST', '/api/operator/prices/import', { source, csv_text, dry_run }),
+    startPriceFetch: (dry_run: boolean) =>
+      json<{ fetch_id: string }>('POST', '/api/operator/prices/fetch', { dry_run }),
+    priceFetchStatus: (fetchId: string) =>
+      json<PriceFetchStatus>('GET', `/api/operator/prices/fetch/${encodeURIComponent(fetchId)}`),
     addObservation: (observation: OperatorObservation) =>
       json<{ observation_id: string }>('POST', '/api/operator/observations', { ...observation }),
     async *chat(request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatEvent> {

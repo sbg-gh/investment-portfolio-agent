@@ -5,6 +5,7 @@ import { useApp } from '../context';
 import { DECIMAL_HELP, describeError } from '../errors';
 import { isDecimalString } from '../money/decimal';
 import { hrefFor } from '../router';
+import { PriceFetch } from './PriceFetch';
 import { PriceImport } from './PriceImport';
 
 /** datetime-local gives minutes (or seconds) with no zone; this form is explicitly UTC. */
@@ -134,6 +135,7 @@ export function Operator({ symbol }: { symbol?: string | undefined }) {
         <button type="submit">Record observation</button>
         {obsDone && <p role="status">{obsDone}</p>}
       </form>
+      <PriceFetch />
       <PriceImport />
     </Page>
   );

@@ -67,3 +67,30 @@ export type PriceImportResult = {
   ignored_columns: string[];
   rows: PriceImportRow[];
 };
+export type FetchOutcome =
+  | 'imported' | 'unchanged' | 'corrected' | 'not_found' | 'unsupported_kind' | 'rate_limited' | 'blocked'
+  | 'provider_error' | 'invalid_response' | 'skipped_budget' | 'skipped_stopped';
+export type PriceFetchSymbol = {
+  symbol: string | null;
+  outcome: FetchOutcome;
+  dates: number;
+  latest_date: string | null;
+  latest_close: string | null;
+};
+export type PriceFetchResult = {
+  dry_run: boolean;
+  source: string;
+  counts: Partial<Record<FetchOutcome, number>>;
+  symbols: PriceFetchSymbol[];
+  omitted: number;
+};
+export type PriceFetchStatus = {
+  state: 'running' | 'done' | 'failed' | 'unknown';
+  fetch_id?: string;
+  dry_run?: boolean;
+  progress?: { done: number; planned: number };
+  started_at?: string;
+  finished_at?: string | null;
+  result?: PriceFetchResult | null;
+  error?: string | null;
+};

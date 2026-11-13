@@ -20,6 +20,8 @@ export function fakeApi(overrides: Partial<Record<keyof Api, unknown>> = {}): Ap
     createSamplePortfolio: () => Promise.resolve({ id: 'p-sample', name: 'Sample portfolio (synthetic)', created: true }),
     importPrices: (source: string, _text: string, dry_run: boolean) =>
       Promise.resolve({ dry_run, source, total_rows: 0, counts: {}, ignored_columns: [], rows: [] }),
+    startPriceFetch: () => Promise.resolve({ fetch_id: 'f1' }),
+    priceFetchStatus: () => Promise.resolve({ state: 'unknown' }),
     addObservation: () => Promise.resolve({ observation_id: 'o' }),
     chat: async function* () {
       /* no events */
