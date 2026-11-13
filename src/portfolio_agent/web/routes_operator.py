@@ -1,4 +1,5 @@
-"""Operator-only endpoints: attested instrument registration and manual observation entry.
+"""Operator-only endpoints: attested instrument registration, manual observation entry and CSV
+price import.
 
 Instruments are operator-ATTESTED, not authoritatively validated. Observations are entered by
 hand; there is no live market data feed.
@@ -9,6 +10,7 @@ from . import routes_common as rc
 from .app import Route
 from .wire import WireError
 from ..ports import Observation
+from ..price_import import FileError
 
 
 def register_instrument(request):
@@ -35,6 +37,19 @@ def add_observation(request):
     return 200, {'observation_id': identity}
 
 
+def import_prices(request):
+    body = request.json
+    source, csv_text, dry_run = body.get('source'), body.get('csv_text'), body.get('dry_run')
+    if not isinstance(source, str) or not isinstance(csv_text, str) or not isinstance(dry_run, bool):
+        raise WireError('invalid_field')
+    try:
+        result = request.run(lambda b: b.ops.import_prices(
+            request.context, source=source, csv_text=csv_text, dry_run=dry_run))
+    except FileError as exc:
+        raise WireError(exc.code) from None  # only the fixed code leaves; never file content
+    return 200, result
+
+
 def register_starter_instruments(request):
     # No body is read: the symbol list is fixed package data, never client supplied.
     return 200, request.run(lambda b: b.ops.register_starter_instruments(request.context))
@@ -44,4 +59,6 @@ def operator_routes():
             Route('POST', '/api/operator/instruments', register_instrument, private=True,
                   unsafe=True, operator=True),
             Route('POST', '/api/operator/observations', add_observation, private=True,
+                  unsafe=True, operator=True),
+            Route('POST', '/api/operator/prices/import', import_prices, private=True,
                   unsafe=True, operator=True)]
