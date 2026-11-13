@@ -84,6 +84,9 @@ async function importHolding(page, symbol, quantity) {
   await page.getByRole('cell', { name: symbol, exact: true }).first().waitFor();
 }
 
+function utcDate(offsetDays) {
+  return new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10);
+}
 async function main() {
   const { child, info } = await startServer();
   let browser;
@@ -137,6 +140,33 @@ async function main() {
     assert.match(await page.getByTestId('subtotal').innerText(), /Partial subtotal/);
     step('a stale price withholds the total and labels the subtotal as partial');
 
+    await page.getByRole('link', { name: 'Operator' }).click();
+    await page.getByLabel('Price list name').fill('e2e-csv');
+    const day = utcDate(-2);
+    const csv = `symbol,date,close,volume\nACME,${day},12.50,1\nOLDCO,${day},6.00,1\nNOPE,${day},1,1\n`;
+    await page.getByLabel('CSV file').setInputFiles({ name: 'synthetic.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    assert.equal(await page.getByRole('button', { name: 'Import', exact: true }).isDisabled(), true, 'Import needs a validation first');
+    await page.getByRole('button', { name: 'Validate' }).click();
+    await page.getByRole('table', { name: 'Per-row results' }).waitFor();
+    await page.getByRole('cell', { name: 'Symbol not registered' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Import', exact: true }).isDisabled(), false);
+    step('CSV validate shows per-row results (one unregistered symbol) and enables Import');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await page.getByText(/Import finished into price list e2e-csv/).waitFor();
+    step('CSV import of two synthetic prices (one row rejected)');
+    await page.getByRole('link', { name: 'Portfolios' }).click();
+    await page.getByRole('link', { name: 'E2E portfolio', exact: true }).click();
+    await page.getByRole('link', { name: 'Valuation' }).click();
+    await page.locator('#source').fill('e2e-csv');
+    await page.getByRole('button', { name: 'Value portfolio' }).click();
+    await page.getByTestId('total-withheld').waitFor();
+    assert.match(await page.getByTestId('window').innerText(), /Prices up to 1 day old/);
+    await page.getByLabel('Accept prices up to').selectOption('3');
+    await page.getByRole('button', { name: 'Value portfolio' }).click();
+    await page.getByTestId('total').waitFor();
+    assert.match(await page.getByTestId('total').innerText(), /USD 49\.5/);
+    assert.match(await page.getByTestId('window').innerText(), /Prices up to 3 days old/);
+    step('imported prices are stale under the 1-day window (total withheld) and complete under 3 days (3 x 12.5 + 2 x 6 = 49.5)');
     await page.getByRole('link', { name: 'Chat' }).click();
     await page.getByLabel('Portfolio (optional)').selectOption({ label: 'E2E portfolio' });
     await page.getByLabel('Your message').fill('What do I hold?');
