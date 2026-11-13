@@ -293,6 +293,14 @@ class OperatorService:
         return self._service._run(context,'ingest_observation',lambda _:ingest_observation(
             self._service._store,observation),operator=True)
 
+    def import_prices(self, context, *, source, csv_text, dry_run, now=None):
+        """Operator-only CSV price import: one transaction, one metadata-only trace.
+
+        Dry run classifies rows and writes no observations. Registers nothing."""
+        from . import price_import
+        return self._service._run(context,'import_prices',lambda _:price_import.import_prices(
+            self._service._store,csv_text,source,dry_run=dry_run,now=now),operator=True)
+
     def register_instrument(self, context, *, security_id, symbol, kind):
         """Operator-ATTESTED registration of a US instrument (no authoritative provider exists).
 
