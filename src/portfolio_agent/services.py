@@ -301,6 +301,12 @@ class OperatorService:
         return self._service._run(context,'import_prices',lambda _:price_import.import_prices(
             self._service._store,csv_text,source,dry_run=dry_run,now=now),operator=True)
 
+    def price_fetch_targets(self, context):
+        """Operator-only: registered stock/ETF symbols for a Yahoo press (funds excluded)."""
+        from . import price_fetch
+        return self._service._run(context,'price_fetch_targets',lambda _:price_fetch.read_targets(
+            self._service._store),operator=True)
+
     def import_rows(self, context, *, source, rows, dry_run, now=None):
         """Operator-only ingest of already-parsed price rows (the Yahoo fetch's single short write).
 

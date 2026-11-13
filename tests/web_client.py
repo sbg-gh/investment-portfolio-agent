@@ -15,6 +15,7 @@ from portfolio_agent.web.routes import default_routes
 from portfolio_agent.web.policy import Policy
 from portfolio_agent.web.ratelimit import LoginThrottle, RateLimiter
 from portfolio_agent.web.sessions import SessionStore
+from portfolio_agent.web.fetch_manager import FetchManager
 from portfolio_agent.web.worker import Direct, Worker
 
 PORT = 8765
@@ -87,8 +88,9 @@ class Client:
         return reply
 
 
-def make_env(extra_routes=(), *, full=False, replies=(), worker=False, **limits):
-    """worker=True builds the Store on a dedicated thread (needed when the caller is threaded)."""
+def make_env(extra_routes=(), *, full=False, replies=(), worker=False, fetch=None, **limits):
+    """worker=True builds the Store on a dedicated thread (needed when the caller is threaded).
+    fetch=dict of FetchManager options (fake transport etc.) attaches a price-fetch manager (needs worker=True)."""
     clock = Clock()
     model = ScriptedModel(replies)
     built = {}
@@ -113,11 +115,12 @@ def make_env(extra_routes=(), *, full=False, replies=(), worker=False, **limits)
     sessions = SessionStore(clock=clock)
     logs = []
     routes = (list(default_routes()) if full else list(session_routes())) + list(extra_routes)
+    manager = FetchManager(executor, **fetch) if fetch is not None else None
     app = App(executor, Policy(PORT), sessions,
               RateLimiter(clock=clock, capacity=limits.get('capacity', 1000), refill_per_second=1000),
               LoginThrottle(clock=clock, per_peer=limits.get('per_peer', 5), global_limit=limits.get('global_limit', 50)),
-              routes=routes, log=logs.append)
+              routes=routes, log=logs.append, fetch=manager)
     return SimpleNamespace(store=backend.store if backend else None,
                            auth=backend.auth if backend else None, tokens=built['tokens'],
                            sessions=sessions, clock=clock, app=app, logs=logs, model=model,
-                           backend=backend, executor=executor, client=lambda **kw: Client(app, **kw))
+                           backend=backend, executor=executor, fetch=manager, client=lambda **kw: Client(app, **kw))

@@ -33,6 +33,8 @@ def samples(pid):
         ('POST', '/api/operator/prices/import'): ('/api/operator/prices/import', {
             'source': 'matrix-src', 'csv_text': 'symbol,date,close\nACME,2020-01-02,1\n',
             'dry_run': True}, ''),
+        ('POST', '/api/operator/prices/fetch'): ('/api/operator/prices/fetch', {'dry_run': True}, ''),
+        ('GET', '/api/operator/prices/fetch/{fetch_id}'): ('/api/operator/prices/fetch/abc123', None, ''),
         ('POST', '/api/operator/starter/instruments'): ('/api/operator/starter/instruments', {}, ''),
         ('POST', '/api/starter/sample-portfolio'): ('/api/starter/sample-portfolio', {}, ''),
         ('POST', '/api/chat'): ('/api/chat', {'message': 'hi'}, ''),

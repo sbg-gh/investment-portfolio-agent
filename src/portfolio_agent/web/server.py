@@ -22,6 +22,7 @@ from ..services import OperatorService, PortfolioService
 from .app import App
 from .asgi import AsgiApp, KEEPALIVE_SECONDS, load_static
 from .backend import Backend
+from .fetch_manager import FetchManager
 from .bind import BindRefused, REMOTE_ACK, REMOTE_ENV, resolve_bind
 from .policy import Policy
 from .ratelimit import LoginThrottle, RateLimiter
@@ -119,13 +120,17 @@ def _backend(db, model, config, valuation_source, prompt_preamble=None):
 
 
 def build_asgi(db, *, port, model, valuation_source, static_dir=STATIC_DIR, allowed_hosts=(),
-               config=None, keepalive=KEEPALIVE_SECONDS, log=None):
+               config=None, keepalive=KEEPALIVE_SECONDS, log=None, fetch_options=None):
     config = config or ModelConfig.from_env(env={})
     log = _print_line if log is None else log
     worker = Worker(lambda: _backend(db, model, config, valuation_source, preamble_for(model)))
+    fetch = FetchManager(worker, **(fetch_options or {}))
     app = App(worker, Policy(port, allowed_hosts), SessionStore(), RateLimiter(), LoginThrottle(),
-              routes=default_routes(), log=log)
-    return AsgiApp(app, static=load_static(static_dir), keepalive=keepalive, on_shutdown=worker.close)
+              routes=default_routes(), log=log, fetch=fetch)
+    def shutdown():
+        fetch.close()    # stop the network thread first, then the store worker it may be using
+        worker.close()
+    return AsgiApp(app, static=load_static(static_dir), keepalive=keepalive, on_shutdown=shutdown)
 
 
 def build_server(db, *, host, port, model, valuation_source, static_dir=STATIC_DIR,

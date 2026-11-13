@@ -1,5 +1,5 @@
-"""Operator-only endpoints: attested instrument registration, manual observation entry and CSV
-price import.
+"""Operator-only endpoints: attested instrument registration, manual observation entry, CSV
+price import and the manual Yahoo end-of-day fetch (background, see fetch_manager.py).
 
 Instruments are operator-ATTESTED, not authoritatively validated. Observations are entered by
 hand; there is no live market data feed.
@@ -50,6 +50,20 @@ def import_prices(request):
     return 200, result
 
 
+def _manager(request):
+    manager = request.app.fetch
+    if manager is None:
+        raise WireError('unavailable', 503)
+    return manager
+def start_fetch(request):
+    dry_run = request.json.get('dry_run')
+    if not isinstance(dry_run, bool):
+        raise WireError('invalid_field')
+    # Identity comes only from the session context; nothing else in the body is read.
+    fetch_id = _manager(request).start(request.user_id, request.context.credential_id, dry_run)
+    return 202, {'fetch_id': fetch_id}
+def fetch_status(request):
+    return 200, _manager(request).status(request.user_id, request.params['fetch_id'])
 def register_starter_instruments(request):
     # No body is read: the symbol list is fixed package data, never client supplied.
     return 200, request.run(lambda b: b.ops.register_starter_instruments(request.context))
@@ -61,4 +75,8 @@ def operator_routes():
             Route('POST', '/api/operator/observations', add_observation, private=True,
                   unsafe=True, operator=True),
             Route('POST', '/api/operator/prices/import', import_prices, private=True,
-                  unsafe=True, operator=True)]
+                  unsafe=True, operator=True),
+            Route('POST', '/api/operator/prices/fetch', start_fetch, private=True,
+                  unsafe=True, operator=True),
+            Route('GET', '/api/operator/prices/fetch/{fetch_id}', fetch_status, private=True,
+                  operator=True)]

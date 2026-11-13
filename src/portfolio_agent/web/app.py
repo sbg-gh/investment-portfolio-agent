@@ -176,7 +176,8 @@ def session_routes():
 
 # --- the application ------------------------------------------------------------------------
 class App:
-    def __init__(self, executor, pol, sessions, limiter, throttle, *, routes, log=lambda line: None):
+    def __init__(self, executor, pol, sessions, limiter, throttle, *, routes, log=lambda line: None,
+                 fetch=None):
         self._executor = executor
         self.policy = pol
         self.sessions = sessions
@@ -184,6 +185,7 @@ class App:
         self.throttle = throttle
         self.routes = list(routes)
         self._log = log
+        self.fetch = fetch   # optional FetchManager (operator price fetch); None disables the routes
 
     # public entry point ---------------------------------------------------------------------
     def handle(self, request):
