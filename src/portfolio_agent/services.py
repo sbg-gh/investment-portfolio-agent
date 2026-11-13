@@ -301,6 +301,15 @@ class OperatorService:
         return self._service._run(context,'import_prices',lambda _:price_import.import_prices(
             self._service._store,csv_text,source,dry_run=dry_run,now=now),operator=True)
 
+    def import_rows(self, context, *, source, rows, dry_run, now=None):
+        """Operator-only ingest of already-parsed price rows (the Yahoo fetch's single short write).
+
+        Same validation and observation semantics as import_prices; identity and operator role are
+        re-checked here under the transaction. Registers nothing."""
+        from . import price_import
+        return self._service._run(context,'import_rows',lambda _:price_import.import_rows(
+            self._service._store,rows,source,dry_run=dry_run,now=now),operator=True)
+
     def register_instrument(self, context, *, security_id, symbol, kind):
         """Operator-ATTESTED registration of a US instrument (no authoritative provider exists).
 

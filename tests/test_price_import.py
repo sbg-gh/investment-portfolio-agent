@@ -291,3 +291,36 @@ class ImportBehaviourTests(Base):
 
 if __name__ == '__main__':
     unittest.main()
+class ImportRowsSeamTests(Base):
+    """import_rows takes ParsedRow objects directly (used by the fetch pipeline); same semantics."""
+    def rows(self, *items):
+        return [price_import.ParsedRow(i + 2, s, d, c) for i, (s, d, c) in enumerate(items)]
+    def test_same_result_shape_as_csv_import(self):
+        csv_result = self.run_import(HEAD + 'SYNA,2026-11-05,1.5\nSYNB,2026-11-05,2\n', dry_run=True)
+        rows_result = price_import.import_rows(
+            self.store, self.rows(('SYNA', '2026-11-05', '1.5'), ('SYNB', '2026-11-05', '2')),
+            'synthetic-file', dry_run=True, now=NOW)
+        csv_result.pop('ignored_columns')
+        rows_result.pop('ignored_columns')
+        self.assertEqual(rows_result, csv_result)
+    def test_writes_unchanged_corrected_and_rejects_bad_rows(self):
+        rows = self.rows(('SYNA', '2026-11-05', '1.5'), ('NOPE', '2026-11-05', '2'),
+                         ('SYNFX', '2026-11-05', '2'), ('SYNB', '2026-11-05', '0'))
+        result = price_import.import_rows(self.store, rows, 'yahoo-chart', dry_run=False, now=NOW)
+        self.assertEqual([r['outcome'] for r in result['rows']],
+                         ['imported', 'unknown_symbol', 'unsupported_kind', 'invalid_value'])
+        self.assertEqual(self.count('market_observations'), 1)
+        again = price_import.import_rows(self.store, rows[:1], 'yahoo-chart', dry_run=False, now=LATER)
+        self.assertEqual(again['counts'], {'unchanged': 1})
+        fixed = self.rows(('SYNA', '2026-11-05', '1.6'))
+        self.assertEqual(price_import.import_rows(self.store, fixed, 'yahoo-chart', dry_run=False,
+                                                  now=LATER)['counts'], {'corrected': 1})
+        self.assertEqual(self.count('market_observations'), 2)
+    def test_invalid_source_and_empty_rows_are_file_errors(self):
+        with self.assertRaises(FileError) as caught:
+            price_import.import_rows(self.store, self.rows(('SYNA', '2026-11-05', '1')), 'bad source!',
+                                     dry_run=True, now=NOW)
+        self.assertEqual(caught.exception.code, 'invalid_source')
+        with self.assertRaises(FileError) as caught:
+            price_import.import_rows(self.store, [], 'yahoo-chart', dry_run=True, now=NOW)
+        self.assertEqual(caught.exception.code, 'empty_file')

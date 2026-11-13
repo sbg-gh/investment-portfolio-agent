@@ -83,3 +83,21 @@ class ImportServiceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+class ImportRowsServiceTests(unittest.TestCase):
+    setUp = ImportServiceTests.setUp
+    count = ImportServiceTests.count
+    ROWS = [price_import.ParsedRow(1, 'SYNA', '2026-11-05', '1.5')]
+    def test_import_rows_operator_only_and_one_trace(self):
+        with self.assertRaises(PermissionError):
+            self.ops.import_rows(self.ctx['alice'], source='yahoo-chart', rows=self.ROWS, dry_run=False, now=NOW)
+        self.assertEqual(self.count('market_observations'), 0)
+        result = self.ops.import_rows(self.ctx['admin'], source='yahoo-chart', rows=self.ROWS,
+                                      dry_run=False, now=NOW)
+        self.assertEqual(result['counts'], {'imported': 1})
+        traces = self.store.db.execute("SELECT outcome FROM execution_traces WHERE operation='import_rows'").fetchall()
+        self.assertEqual(traces, [('denied',), ('success',)])  # the denied attempt is traced too
+    def test_import_rows_revoked_credential_writes_nothing(self):
+        self.auth.revoke(self.ctx['admin'].credential_id)
+        with self.assertRaises(PermissionError):
+            self.ops.import_rows(self.ctx['admin'], source='yahoo-chart', rows=self.ROWS, dry_run=False, now=NOW)
+        self.assertEqual(self.count('market_observations'), 0)

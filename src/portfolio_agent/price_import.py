@@ -206,6 +206,17 @@ def import_prices(store, csv_input, source, *, dry_run, now=None):
     if not isinstance(source, str) or not _SOURCE.fullmatch(source):
         raise FileError('invalid_source')
     parsed = parse_csv(csv_input)
+    return import_rows(store, parsed.rows, source, dry_run=dry_run, now=now,
+                       ignored_columns=parsed.ignored_columns)
+def import_rows(store, rows, source, *, dry_run, now=None, ignored_columns=()):
+    """Validate and ingest ParsedRow objects (the CSV path and the Yahoo fetch share this core)."""
+    if not isinstance(source, str) or not _SOURCE.fullmatch(source):
+        raise FileError('invalid_source')
+    if not rows:
+        raise FileError('empty_file')
+    if len(rows) > MAX_ROWS:
+        raise FileError('too_many_rows')
+    parsed = ParsedFile(list(rows), list(ignored_columns))
     now = valuation.utc(now) if now is not None else datetime.now(timezone.utc)
     with store.transaction():
         results = plan_import(store, parsed, source, now)
