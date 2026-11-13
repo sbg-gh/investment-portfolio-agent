@@ -16,6 +16,8 @@ export function fakeApi(overrides: Partial<Record<keyof Api, unknown>> = {}): Ap
     valuation: () => Promise.reject(new Error('valuation not stubbed')),
     sources: () => Promise.resolve([]),
     registerInstrument: () => Promise.resolve({ security_id: 's' }),
+    registerStarterInstruments: () => Promise.resolve({ registered: 20, already_present: 0, symbols: 20 }),
+    createSamplePortfolio: () => Promise.resolve({ id: 'p-sample', name: 'Sample portfolio (synthetic)', created: true }),
     addObservation: () => Promise.resolve({ observation_id: 'o' }),
     chat: async function* () {
       /* no events */

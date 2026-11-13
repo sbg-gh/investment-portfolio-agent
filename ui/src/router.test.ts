@@ -23,4 +23,16 @@ describe('parseRoute', () => {
   it('builds hrefs that round-trip', () => {
     expect(parseRoute(hrefFor({ name: 'valuation', id: 'abc' }))).toEqual({ name: 'valuation', id: 'abc' });
   });
+  it('carries a validated symbol on the operator route and round-trips it', () => {
+    expect(parseRoute('#/operator?symbol=AMD')).toEqual({ name: 'operator', symbol: 'AMD' });
+    expect(parseRoute('#/operator?symbol=BRK.B')).toEqual({ name: 'operator', symbol: 'BRK.B' });
+    expect(parseRoute(hrefFor({ name: 'operator', symbol: 'AMD' }))).toEqual({ name: 'operator', symbol: 'AMD' });
+    expect(hrefFor({ name: 'operator' })).toBe('#/operator');
+  });
+  it('drops an invalid or extra operator query instead of trusting it', () => {
+    expect(parseRoute('#/operator?symbol=<x>')).toEqual({ name: 'operator' });
+    expect(parseRoute('#/operator?symbol=amd')).toEqual({ name: 'operator' });
+    expect(parseRoute('#/operator?other=1')).toEqual({ name: 'operator' });
+    expect(parseRoute('#/portfolios?symbol=AMD')).toEqual({ name: 'portfolios' });
+  });
 });

@@ -9,6 +9,7 @@ from uuid import uuid4
 from . import routes_common as rc
 from .app import Route
 from .wire import WireError
+from ..starter_data import StarterDataMissing
 
 SOURCE_LABEL = 'web-ui'
 MAX_IDS = 500
@@ -29,6 +30,14 @@ def create_portfolio(request):
     return 201, {'id': pid, 'name': name}
 
 
+def create_sample_portfolio(request):
+    # The owner is the session user only; any body (including a user_id) is ignored.
+    try:
+        result = request.run(lambda b: b.service.create_sample_portfolio(
+            request.context, as_of=rc.now()))
+    except StarterDataMissing:
+        return 409, {'error': 'starter_instruments_missing'}
+    return (201 if result['created'] else 200), result
 def list_holdings(request):
     pid = request.params['id']
     rows = request.run(lambda b: b.service.holdings(request.context, pid))
@@ -95,6 +104,8 @@ def portfolio_routes():
     base = '/api/portfolios'
     return [Route('GET', base, list_portfolios, private=True),
             Route('POST', base, create_portfolio, private=True, unsafe=True),
+            Route('POST', '/api/starter/sample-portfolio', create_sample_portfolio, private=True,
+                  unsafe=True),
             Route('GET', base + '/{id}/holdings', list_holdings, private=True),
             Route('POST', base + '/{id}/holdings', import_holding, private=True, unsafe=True),
             Route('DELETE', base + '/{id}/holdings/{security_id}', remove_holding, private=True,

@@ -30,6 +30,8 @@ def samples(pid):
         ('POST', '/api/operator/observations'): ('/api/operator/observations', {
             'security_id': 'op:acme', 'value': '1', 'basis': 'price', 'source': SOURCE,
             'observed_at': NOW.isoformat()}, ''),
+        ('POST', '/api/operator/starter/instruments'): ('/api/operator/starter/instruments', {}, ''),
+        ('POST', '/api/starter/sample-portfolio'): ('/api/starter/sample-portfolio', {}, ''),
         ('POST', '/api/chat'): ('/api/chat', {'message': 'hi'}, ''),
     }
 

@@ -75,17 +75,43 @@ describe('Holdings', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/plain decimal/i);
   });
 
-  it('explains that an unknown symbol needs operator registration', async () => {
+  async function importUnknown(api: ReturnType<typeof fakeApi>, role: 'user' | 'operator', typed = 'amd') {
     const user = userEvent.setup();
-    const api = fakeApi({ importHolding: () => Promise.reject(new ApiError(422, 'invalid_request')) });
-    renderScreen(<Holdings portfolioId="p-1" />, api);
+    renderScreen(<Holdings portfolioId="p-1" />, api, role);
     await screen.findByRole('table', { name: /holdings/i });
-    await user.type(screen.getByLabelText(/symbol/i), 'ZZZ');
+    await user.type(screen.getByLabelText(/symbol/i), typed);
     await user.type(screen.getByLabelText(/quantity/i), '3');
     await user.click(screen.getByRole('button', { name: /import holding/i }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/operator registration or reconciliation/i);
+    return await screen.findByRole('alert');
+  }
+  const UNKNOWN = () => Promise.reject(new ApiError(422, 'invalid_request'));
+  it('links an operator to the registration form with the symbol pre-filled', async () => {
+    const alert = await importUnknown(fakeApi({ importHolding: UNKNOWN }), 'operator');
+    expect(alert.textContent).toMatch(/not registered/i);
+    expect(within(alert).getByRole('link', { name: /register amd/i }).getAttribute('href')).toBe(
+      '#/operator?symbol=AMD',
+    );
   });
-
+  it('tells a non-operator that an operator must register the instrument, with no link', async () => {
+    const alert = await importUnknown(fakeApi({ importHolding: UNKNOWN }), 'user');
+    expect(alert.textContent).toMatch(/an operator must register this instrument before it can be held/i);
+    expect(within(alert).queryByRole('link')).toBeNull();
+    expect(alert.textContent).not.toMatch(/amd/i);
+  });
+  it('does not build a link from an invalid symbol and never shows server text', async () => {
+    const api = fakeApi({ importHolding: () => Promise.reject(new ApiError(422, 'invalid_request')) });
+    const alert = await importUnknown(api, 'operator', 'a b<');
+    expect(within(alert).queryByRole('link')).toBeNull();
+    expect(alert.textContent).toMatch(/not registered/i);
+  });
+  it('notes when the receipts come from the synthetic sample seed', async () => {
+    const api = fakeApi({
+      holdings: () => Promise.resolve(HOLDINGS),
+      receipts: () => Promise.resolve([{ ...RECEIPTS[0]!, source: 'starter-sample-synthetic' }]),
+    });
+    renderScreen(<Holdings portfolioId="p-1" />, api);
+    expect((await screen.findByText(/synthetic sample/i)).textContent).toMatch(/not your real positions/i);
+  });
   it('removes a holding with its own idempotency key and reloads', async () => {
     const user = userEvent.setup();
     const api = fakeApi({ holdings: () => Promise.resolve(HOLDINGS) });

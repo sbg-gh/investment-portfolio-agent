@@ -4,19 +4,21 @@ import type { Holding, Receipt } from '../api/types';
 import { Page, Problem } from '../components/Page';
 import { useApp } from '../context';
 import { DECIMAL_HELP, describeError } from '../errors';
-import { hrefFor } from '../router';
+import { SYMBOL, hrefFor } from '../router';
 import { isDecimalString } from '../money/decimal';
 
-const UNREGISTERED =
-  'That symbol is not registered or could not be matched. Operator registration or reconciliation is needed before it can be held.';
+const SAMPLE_SOURCE = 'starter-sample-synthetic';
 
 export function Holdings({ portfolioId }: { portfolioId: string }) {
-  const { api, announce } = useApp();
+  const { api, session, announce } = useApp();
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [symbol, setSymbol] = useState('');
   const [quantity, setQuantity] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  // Set when an import was refused because the instrument is not registered. Holds the typed
+  // symbol (upper-cased) only if it has a valid shape, so a link is never built from raw input.
+  const [unregistered, setUnregistered] = useState<{ symbol: string | null } | null>(null);
   // A key is kept until its action succeeds, so retrying the same action after a lost response
   // reuses it and the server can dedupe. A different action (other symbol/quantity) gets a new key.
   const pending = useRef<{ action: string; key: string } | null>(null);
@@ -42,6 +44,7 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
   async function importHolding(event: FormEvent) {
     event.preventDefault();
     setProblem(null);
+    setUnregistered(null);
     if (!isDecimalString(quantity)) {
       setProblem(DECIMAL_HELP);
       return;
@@ -54,8 +57,12 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
       announce('Holding imported');
       await load();
     } catch (error) {
-      setProblem(error instanceof ApiError && error.status === 422 && error.code === 'invalid_request'
-        ? UNREGISTERED : describeError(error));
+      if (error instanceof ApiError && error.status === 422 && error.code === 'invalid_request') {
+        const typed = symbol.trim().toUpperCase();
+        setUnregistered({ symbol: SYMBOL.test(typed) ? typed : null });
+      } else {
+        setProblem(describeError(error));
+      }
     }
   }
 
@@ -80,6 +87,21 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
         <a href={hrefFor({ name: 'valuation', id: portfolioId })}>Valuation</a>
       </p>
       <Problem message={problem} />
+      {unregistered && (
+        <p role="alert" className="problem">
+          {session.role === 'operator'
+            ? <>That instrument is not registered, so it cannot be held yet.{' '}
+                {unregistered.symbol && (
+                  <a href={hrefFor({ name: 'operator', symbol: unregistered.symbol })}>
+                    Register {unregistered.symbol} on the Operator screen
+                  </a>
+                )}</>
+            : 'An operator must register this instrument before it can be held.'}
+        </p>
+      )}
+      {receipts.some((r) => r.source === SAMPLE_SOURCE) && (
+        <p>This portfolio was created from the synthetic sample. It is not your real positions.</p>
+      )}
       {holdings === null ? (
         problem ? null : <p>Loading…</p>
       ) : (

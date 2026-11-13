@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '../api/client';
 import { fakeApi } from '../test/fake-api';
 import { renderScreen } from '../test/render';
 import { Operator } from './Operator';
@@ -60,5 +61,33 @@ describe('Operator', () => {
     await user.click(screen.getByRole('button', { name: /record observation/i }));
     expect(api.addObservation).not.toHaveBeenCalled();
     expect((await screen.findByRole('alert')).textContent).toMatch(/plain decimal/i);
+  });
+  it('registers the starter instruments, shows counts and says no prices are included', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi({
+      registerStarterInstruments: () => Promise.resolve({ registered: 19, already_present: 1, symbols: 20 }),
+    });
+    const { container } = renderScreen(<Operator />, api, 'operator');
+    await user.click(await screen.findByRole('button', { name: /register starter instruments/i }));
+    expect(api.registerStarterInstruments).toHaveBeenCalledTimes(1);
+    const status = await screen.findByText(/19 registered/i);
+    expect(status.textContent).toMatch(/1 already present/i);
+    expect(status.textContent).toMatch(/20/);
+    expect(screen.getByText(/no prices are included/i)).toBeTruthy();
+    expect(screen.getByText(/skhy/i).textContent).toMatch(/not verified/i);
+    expect(screen.getByRole('link', { name: /portfolios/i }).getAttribute('href')).toBe('#/portfolios');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+  it('shows a fixed message when starter registration fails', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi({ registerStarterInstruments: () => Promise.reject(new ApiError(403, 'forbidden')) });
+    renderScreen(<Operator />, api, 'operator');
+    await user.click(await screen.findByRole('button', { name: /register starter instruments/i }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/operator role required/i);
+  });
+  it('prefills the registration form from the route symbol with the registry-style id', async () => {
+    renderScreen(<Operator symbol="AMD" />, fakeApi(), 'operator');
+    expect((await screen.findByLabelText(/^symbol/i) as HTMLInputElement).value).toBe('AMD');
+    expect((screen.getByLabelText(/security id/i, { selector: '#reg-id' }) as HTMLInputElement).value).toBe('op:amd');
   });
 });

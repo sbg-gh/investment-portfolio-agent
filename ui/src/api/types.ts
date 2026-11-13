@@ -52,3 +52,6 @@ export type ChatEvent =
   | { event: 'proposals'; data: unknown[] }
   | { event: 'done'; data: { model_status: 'ok' | 'unavailable'; conversation_id: string; request_id: string } }
   | { event: 'error'; data: { error: string; request_id?: string } };
+
+export type StarterInstrumentsResult = { registered: number; already_present: number; symbols: number };
+export type SamplePortfolioResult = { id: string; name: string; created: boolean };

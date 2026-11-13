@@ -6,20 +6,26 @@ export type Route =
   | { name: 'holdings'; id: string }
   | { name: 'valuation'; id: string }
   | { name: 'chat' }
-  | { name: 'operator' }
+  | { name: 'operator'; symbol?: string }
   | { name: 'not-found' };
 
 // The hash never reaches the server, so ids in routes cannot appear in any access log.
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+/** Same shape the server accepts for symbols; anything else is dropped, never trusted. */
+export const SYMBOL = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
 
 export function parseRoute(hash: string): Route {
-  const path = hash.replace(/^#\/?/, '');
+  const [rawPath = '', query = ''] = hash.replace(/^#\/?/, '').split('?', 2);
+  const path = rawPath;
   const parts = path === '' ? [] : path.split('/');
   const [first, id, third] = parts;
   if (parts.length === 0 || (parts.length === 1 && first === 'portfolios')) return { name: 'portfolios' };
   if (parts.length === 1 && first === 'login') return { name: 'login' };
   if (parts.length === 1 && first === 'chat') return { name: 'chat' };
-  if (parts.length === 1 && first === 'operator') return { name: 'operator' };
+  if (parts.length === 1 && first === 'operator') {
+    const symbol = new URLSearchParams(query).get('symbol');
+    return symbol !== null && SYMBOL.test(symbol) ? { name: 'operator', symbol } : { name: 'operator' };
+  }
   if (first === 'portfolios' && id !== undefined && ID.test(id)) {
     if (parts.length === 2) return { name: 'holdings', id };
     if (parts.length === 3 && third === 'valuation') return { name: 'valuation', id };
@@ -37,6 +43,8 @@ export function hrefFor(route: Route): string {
       return '#/';
     case 'portfolios':
       return '#/portfolios';
+    case 'operator':
+      return route.symbol ? `#/operator?symbol=${encodeURIComponent(route.symbol)}` : '#/operator';
     default:
       return `#/${route.name}`;
   }

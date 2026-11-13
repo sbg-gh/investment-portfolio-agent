@@ -10,10 +10,27 @@ pip install --require-hashes -r requirements/ui.lock && pip install -e '.[ui]'
 npm --prefix ui ci && npm --prefix ui run build          # Node 18.20.2+, output is gitignored
 python -m portfolio_agent.web create-user alice --db var/portfolio.db
 python -m portfolio_agent.web issue-credential alice --db var/portfolio.db --role operator   # prints the token once
+python -m portfolio_agent.web seed-starter-data --db var/portfolio.db --user alice            # optional starter data, see below
 python -m portfolio_agent.web serve --db var/portfolio.db                                    # http://127.0.0.1:8765
 ```
 
 Add `--model-from-env` with `MODEL_ENDPOINT` / `MODEL_NAME` (any OpenAI-compatible endpoint, e.g. `MODEL_ENDPOINT=http://localhost:11434 MODEL_NAME=llama3.2:3b` for Ollama) to use a local model. Without it, chat answers with deterministic facts and says the model is unavailable. If the UI was not built, the server still starts and serves a plain "UI not built" page; the API is unaffected. `revoke-credential CREDENTIAL_ID --db ...` revokes a credential and ends its sessions on the next request.
+
+## Starter data (instruments and one sample portfolio)
+
+A new database has no instruments, so every symbol is refused ("not registered") until an operator registers it. The starter seed registers the 20 symbols of the `ai-conviction` watchlist (MU, AVGO, SMCI, TSM, MRVL, NVDA, AMD, OKLO, SMR, LEU, SNOW, CRWV, ANET, ORCL, VRT, CCJ, GEV, BE, UEC, SKHY) and can create one sample portfolio. Two ways, same effect:
+
+- Command (trusted local administration, like `create-user`; it works without the ui extra): `python -m portfolio_agent.web seed-starter-data --db PATH [--user USER_ID]`. It always registers the instruments (idempotent). With `--user` it also creates that existing user's sample portfolio. There is no authentication context on the command line, so `--user` is taken as given; an unknown user fails with the generic `error: unknown user or credential`. Output is one JSON line of counts only.
+- Buttons: the Operator screen has "Register starter instruments" (operator role only). The Portfolios screen has "Create sample portfolio" (any signed-in user; it hides once a portfolio with that name exists). A single operator-role credential can press both, instruments first. If the instruments are missing, the second button says so, and links to the Operator screen only for an operator.
+
+What is seeded and what is not:
+
+- Instruments: kind `stock`, country `US`, id `op:<lowercase symbol>`, source `operator-attested:ai-conviction`. These are operator-ATTESTED, not validated against any market-data authority. SKHY is recorded with source `operator-attested:ai-conviction:user-attested`: it is the user's own statement that SKHY is a US-listed stock, and nothing verified it. The watchlist file's `pending` validation statuses are unchanged.
+- Sample portfolio: named `Sample portfolio (synthetic)`, 20 holdings at the round quantity `100`, imported through the normal authorized import path, so each holding has a receipt with source `starter-sample-synthetic` and idempotency key `starter-sample-v1:<SYMBOL>`. It is synthetic and is not anyone's real positions. The sample is the caller's portfolio with that exact name that also has those receipts; a portfolio you named the same yourself is never adopted. Re-running creates no duplicate instruments, portfolios, holdings or receipts, and a holding you removed is not put back.
+- No prices. Nothing writes market observations, so the sample's valuation shows every line as missing and no total. This is deliberate: AGENTS.md forbids invented prices and a made-up price for a real ticker would mislead. Enter prices on the Operator screen (Record observation) to see a total.
+- The registration route ignores the request body and the sample route ignores any body `user_id`; the owner is always the session user.
+
+If a Holdings import fails because the symbol is not registered, an operator sees a link to the Operator screen with the symbol pre-filled in the registration form (`#/operator?symbol=AMD`, only for symbols of valid shape), and a non-operator is told an operator must register the instrument. Neither message shows server text.
 
 ## Architecture
 
@@ -53,6 +70,8 @@ Trusted: the OS account running the server, the database file, the operator CLI.
 | GET | `/api/securities`, `/api/sources` | public instrument identity / known observation sources |
 | POST | `/api/chat` | `text/event-stream`: `status`, keep-alive comments, `evidence`, `explanation`, `proposals`, `done` (`model_status`) |
 | POST | `/api/operator/instruments`, `/api/operator/observations` | operator only |
+| POST | `/api/operator/starter/instruments` | operator only; registers the 20 starter symbols (idempotent); returns `{registered, already_present, symbols}` |
+| POST | `/api/starter/sample-portfolio` | any signed-in user; creates or returns the session user's sample (201 created, 200 existing); 409 `starter_instruments_missing` creates nothing |
 
 ## Known limits
 
@@ -65,7 +84,8 @@ Trusted: the OS account running the server, the database file, the operator CLI.
 - Queue exhaustion: one authenticated user can fill the 16-slot worker queue with chat turns, pushing others to 503 `busy`; a client disconnect does not cancel a running turn. `Worker.submit` and `Worker.close` have no timeout beyond the model and SQLite timeouts. Per-session concurrency caps are follow-up work.
 - Chat failures in `on_model_error='facts'` mode surface only as `model_status: unavailable`; the cause is not logged.
 - `--allowed-host` extends the Host/Origin allow-list even on a loopback bind. No per-request body read timeout beyond uvicorn defaults. `GET .../valuation` writes a snapshot row.
-- The API client's numeric-money guard uses a fixed `MONEY_KEYS` list (`quantity`, `value`, `total`, `priced_subtotal`, `market_value`, `unit_value`); a new money field added to the server must be added there too.
+- The API client's numeric-money guard uses a fixed `MONEY_KEYS` list (`quantity`, `value`, `total`, `priced_subtotal`, `market_value`, `unit_value`); a new money field added to the server must be added there too. Counts therefore must not use those names: the starter result uses `symbols`, not `total`, because a numeric `total` is rejected as numeric money.
+- The Portfolios screen decides whether to show the sample button by the portfolio name alone, so a portfolio you named `Sample portfolio (synthetic)` yourself hides the button even though the server would have created a separate sample.
 - Idempotency: the Holdings screen keeps one key per action until it succeeds, so retrying the same import or removal after a lost response reuses it. Switching to a different symbol, quantity or holding starts a new key.
 - Prices are operator-entered; there is no live market-data adapter. Sessions are in memory, so a restart logs everyone out.
 - CI: the `ui` job installs from the hashed lock, runs Node 18 lint/test/build, `npm audit --omit=dev`, the Python suite and `cli eval`. It has no secrets and makes no third-party calls in tests; actions are pinned to commit SHAs. The browser e2e and any real-model run are local only and are not in CI.

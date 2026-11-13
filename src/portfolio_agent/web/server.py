@@ -1,4 +1,5 @@
-"""Operator CLI and server assembly: serve, create-user, issue-credential, revoke-credential.
+"""Operator CLI and server assembly: serve, create-user, issue-credential, revoke-credential,
+seed-starter-data.
 
 Trusted local administration. Tokens are printed once at issuance and never logged; the database
 stores only their hash. uvicorn is imported lazily and only by `serve`, so provisioning and the
@@ -88,6 +89,11 @@ def parse_args(argv=None):
     revoke = commands.add_parser('revoke-credential', help='revoke a credential by id')
     revoke.add_argument('credential_id')
     revoke.add_argument('--db', required=True)
+    seed = commands.add_parser('seed-starter-data', help='register the starter instruments '
+                               '(and with --user, that user\'s synthetic sample portfolio)')
+    seed.add_argument('--db', required=True)
+    seed.add_argument('--user', default=None, help='existing user id who owns the sample portfolio '
+                      '(trusted local administration; there is no authentication context here)')
     return parser.parse_args(argv)
 
 
@@ -190,8 +196,29 @@ def _revoke(args, env):
     return 0
 
 
+def _seed_starter(args, env):
+    from datetime import datetime, timezone
+    from .. import starter_data
+    store = Store(args.db)
+    try:
+        with store.transaction():
+            if args.user is not None and not store.db.execute(
+                    'SELECT 1 FROM users WHERE id=?', (args.user,)).fetchone():
+                raise PermissionError('unknown user')
+            counts = starter_data.register_instruments(store)
+            sample = 'skipped'
+            if args.user is not None:
+                made = starter_data.create_sample(store, args.user, RegistryValidator(store),
+                                                  as_of=datetime.now(timezone.utc))
+                sample = 'created' if made['created'] else 'existing'
+    finally:
+        store.close()
+    print(json.dumps({'instruments_registered': counts['registered'],
+                      'instruments_already_present': counts['already_present'],
+                      'sample_portfolio': sample}))
+    return 0
 COMMANDS = {'serve': _serve, 'create-user': _create_user, 'issue-credential': _issue,
-            'revoke-credential': _revoke}
+            'revoke-credential': _revoke, 'seed-starter-data': _seed_starter}
 
 
 def main(argv=None, env=None):

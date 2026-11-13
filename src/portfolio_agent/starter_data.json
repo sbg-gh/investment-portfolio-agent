@@ -1,0 +1,146 @@
+{
+ "schema_version": 1,
+ "watchlist": "ai-conviction",
+ "entries": [
+  {
+   "symbol": "MU",
+   "security_id": "op:mu",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "AVGO",
+   "security_id": "op:avgo",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "SMCI",
+   "security_id": "op:smci",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "TSM",
+   "security_id": "op:tsm",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "MRVL",
+   "security_id": "op:mrvl",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "NVDA",
+   "security_id": "op:nvda",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "AMD",
+   "security_id": "op:amd",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "OKLO",
+   "security_id": "op:oklo",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "SMR",
+   "security_id": "op:smr",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "LEU",
+   "security_id": "op:leu",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "SNOW",
+   "security_id": "op:snow",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "CRWV",
+   "security_id": "op:crwv",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "ANET",
+   "security_id": "op:anet",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "ORCL",
+   "security_id": "op:orcl",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "VRT",
+   "security_id": "op:vrt",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "CCJ",
+   "security_id": "op:ccj",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "GEV",
+   "security_id": "op:gev",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "BE",
+   "security_id": "op:be",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "UEC",
+   "security_id": "op:uec",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction"
+  },
+  {
+   "symbol": "SKHY",
+   "security_id": "op:skhy",
+   "kind": "stock",
+   "country": "US",
+   "source": "operator-attested:ai-conviction:user-attested"
+  }
+ ]
+}

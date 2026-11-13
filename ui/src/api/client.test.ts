@@ -109,4 +109,26 @@ describe('createApi', () => {
     };
     await expect(iterate()).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
+  it('posts the starter-data actions with the CSRF header and surfaces the 409 code', async () => {
+    const { impl, calls } = fakeFetch([
+      { body: SESSION },
+      { body: { registered: 20, already_present: 0, symbols: 20 } },
+      { status: 201, body: { id: 'p1', name: 'Sample portfolio (synthetic)', created: true } },
+      { status: 409, body: { error: 'starter_instruments_missing' } },
+    ]);
+    const api = createApi(impl);
+    await api.login('tok');
+    expect(await api.registerStarterInstruments()).toEqual({ registered: 20, already_present: 0, symbols: 20 });
+    expect((await api.createSamplePortfolio()).created).toBe(true);
+    expect(calls[1]?.url).toBe('/api/operator/starter/instruments');
+    expect(calls[2]?.url).toBe('/api/starter/sample-portfolio');
+    for (const i of [1, 2]) {
+      expect(calls[i]?.init.method).toBe('POST');
+      expect(new Headers(calls[i]?.init.headers).get('x-csrf-token')).toBe('csrf-token-1');
+    }
+    const failure = await api.createSamplePortfolio().catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).status).toBe(409);
+    expect((failure as ApiError).code).toBe('starter_instruments_missing');
+  });
 });

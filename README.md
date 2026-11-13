@@ -31,8 +31,10 @@ pip install -e '.[ui]'                                   # uvicorn, h11, click (
 npm --prefix ui ci && npm --prefix ui run build          # Node 18.20.2+
 python -m portfolio_agent.web create-user alice --db var/portfolio.db
 python -m portfolio_agent.web issue-credential alice --db var/portfolio.db --role operator
+python -m portfolio_agent.web seed-starter-data --db var/portfolio.db --user alice   # optional: 20 watchlist instruments + a synthetic sample portfolio
 python -m portfolio_agent.web serve --db var/portfolio.db   # open http://127.0.0.1:8765 and paste the token
 ```
+The starter instruments are operator-attested, not validated; SKHY is the user's own attestation; no prices are seeded (enter them on the Operator screen). The same two actions are buttons on the Operator and Portfolios screens.
 
 Loopback only, no TLS, operator-entered prices, slice 7a screens. See [docs/UI.md](docs/UI.md) for the threat model, limits and the recorded smoke tests. The four gates above need none of this.
 

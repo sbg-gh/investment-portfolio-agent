@@ -1,6 +1,7 @@
 import { parseSse } from './sse';
 import type {
-  ChatEvent, ChatRequest, Holding, Portfolio, Receipt, SessionInfo, Valuation,
+  ChatEvent, ChatRequest, Holding, Portfolio, Receipt, SamplePortfolioResult, SessionInfo,
+  StarterInstrumentsResult, Valuation,
 } from './types';
 
 export class ApiError extends Error {
@@ -122,6 +123,9 @@ export function createApi(fetchImpl: typeof fetch = (...args) => fetch(...args))
     sources: () => json<string[]>('GET', '/api/sources'),
     registerInstrument: (security_id: string, symbol: string, kind: string) =>
       json<{ security_id: string }>('POST', '/api/operator/instruments', { security_id, symbol, kind }),
+    registerStarterInstruments: () =>
+      json<StarterInstrumentsResult>('POST', '/api/operator/starter/instruments', {}),
+    createSamplePortfolio: () => json<SamplePortfolioResult>('POST', '/api/starter/sample-portfolio', {}),
     addObservation: (observation: OperatorObservation) =>
       json<{ observation_id: string }>('POST', '/api/operator/observations', { ...observation }),
     async *chat(request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatEvent> {

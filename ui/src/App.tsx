@@ -61,7 +61,7 @@ export function App({ api: injected }: { api?: Api }) {
   if (session === undefined) screen = <Page title="Loading" />;
   else if (session === null) screen = null;
   else if (route.name === 'chat') screen = <Chat />;
-  else if (route.name === 'operator') screen = <Operator />;
+  else if (route.name === 'operator') screen = <Operator symbol={route.symbol} />;
   else if (route.name === 'holdings') screen = <Holdings key={route.id} portfolioId={route.id} />;
   else if (route.name === 'valuation') screen = <Valuation key={route.id} portfolioId={route.id} />;
   else if (route.name === 'not-found') screen = <Page title="Page not found"><p><a href={hrefFor({ name: 'portfolios' })}>Go to portfolios</a></p></Page>;

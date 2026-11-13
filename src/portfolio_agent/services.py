@@ -87,6 +87,12 @@ class PortfolioService:
                 user,portfolio_id,symbol,quantity,self._validator,
                 source=source,market_as_of=market_as_of,idempotency_key=idempotency_key))
 
+    def create_sample_portfolio(self, context, *, as_of):
+        """The caller's own synthetic sample portfolio (owner from the AuthContext only).
+        Never registers instruments; raises StarterDataMissing if any is unregistered."""
+        from .starter_data import create_sample
+        return self._run(context,'create_sample_portfolio',lambda user:create_sample(
+            self._store,user,self._validator,as_of=as_of))
     def remove_holding(self, context, portfolio_id, security_id, *, source, idempotency_key, market_as_of):
         return self._run(context,'remove_holding',lambda user:self._store.remove_holding(
             user,portfolio_id,security_id,source=source,idempotency_key=idempotency_key,market_as_of=market_as_of))
@@ -304,6 +310,11 @@ class OperatorService:
             return security.security_id
         return self._service._run(context,'register_instrument',register,operator=True)
 
+    def register_starter_instruments(self, context):
+        """Operator-ATTESTED registration of the ai-conviction watchlist symbols (no prices)."""
+        from .starter_data import register_instruments
+        return self._service._run(context,'register_starter_instruments',lambda _:register_instruments(
+            self._service._store),operator=True)
     def ingest_public_fact(self, context, body, source):
         return self._service._run(context,'public_fact',lambda _:self._service._store.ingest_public_fact(
             body,source),operator=True)

@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
+import type { StarterInstrumentsResult } from '../api/types';
 import { Page, Problem } from '../components/Page';
 import { useApp } from '../context';
 import { DECIMAL_HELP, describeError } from '../errors';
 import { isDecimalString } from '../money/decimal';
+import { hrefFor } from '../router';
 
 /** datetime-local gives minutes (or seconds) with no zone; this form is explicitly UTC. */
 function utcStamp(local: string): string {
@@ -10,10 +12,12 @@ function utcStamp(local: string): string {
   return `${withSeconds}+00:00`;
 }
 
-export function Operator() {
+export function Operator({ symbol }: { symbol?: string | undefined }) {
   const { api, session, announce } = useApp();
-  const [regId, setRegId] = useState('');
-  const [regSymbol, setRegSymbol] = useState('');
+  // A symbol from the route (already validated by the router) only pre-fills the form.
+  const [regId, setRegId] = useState(symbol ? `op:${symbol.toLowerCase()}` : '');
+  const [regSymbol, setRegSymbol] = useState(symbol ?? '');
+  const [starter, setStarter] = useState<StarterInstrumentsResult | null>(null);
   const [regKind, setRegKind] = useState('stock');
   const [regDone, setRegDone] = useState<string | null>(null);
   const [obsId, setObsId] = useState('');
@@ -45,6 +49,16 @@ export function Operator() {
     }
   }
 
+  async function registerStarter() {
+    setProblem(null);
+    setStarter(null);
+    try {
+      setStarter(await api.registerStarterInstruments());
+      announce('Starter instruments registered');
+    } catch (error) {
+      setProblem(describeError(error));
+    }
+  }
   async function observe(event: FormEvent) {
     event.preventDefault();
     setProblem(null);
@@ -71,6 +85,21 @@ export function Operator() {
         nothing checks them against a market-data authority.
       </p>
       <Problem message={problem} />
+      <section aria-labelledby="starter-title">
+        <h2 id="starter-title">Starter instruments</h2>
+        <p>
+          Registers the 20 symbols of the AI Conviction watchlist as US stocks, attested by you as operator. SKHY is the
+          user&apos;s own attestation that it is a US-listed stock; it is not verified by any authority. No prices
+          are included: enter them in the observation form below.
+        </p>
+        <button type="button" onClick={() => void registerStarter()}>Register starter instruments</button>
+        {starter && (
+          <p role="status">
+            {starter.registered} registered, {starter.already_present} already present, of {starter.symbols}.{' '}
+            <a href={hrefFor({ name: 'portfolios' })}>Go to portfolios</a> to create the sample portfolio.
+          </p>
+        )}
+      </section>
       <form onSubmit={register}>
         <h2>Register instrument</h2>
         <label htmlFor="reg-id">Security ID</label>

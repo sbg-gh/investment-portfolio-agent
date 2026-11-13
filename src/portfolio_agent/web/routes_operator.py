@@ -35,8 +35,13 @@ def add_observation(request):
     return 200, {'observation_id': identity}
 
 
+def register_starter_instruments(request):
+    # No body is read: the symbol list is fixed package data, never client supplied.
+    return 200, request.run(lambda b: b.ops.register_starter_instruments(request.context))
 def operator_routes():
-    return [Route('POST', '/api/operator/instruments', register_instrument, private=True,
+    return [Route('POST', '/api/operator/starter/instruments', register_starter_instruments,
+                  private=True, unsafe=True, operator=True),
+            Route('POST', '/api/operator/instruments', register_instrument, private=True,
                   unsafe=True, operator=True),
             Route('POST', '/api/operator/observations', add_observation, private=True,
                   unsafe=True, operator=True)]
