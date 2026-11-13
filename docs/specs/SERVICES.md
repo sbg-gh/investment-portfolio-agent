@@ -6,7 +6,7 @@
 
 `holdings(user_id, portfolio_id)` returns scoped `(security_id, decimal-string quantity)` rows. `set_research` and `enable_monitoring` are trusted operator methods. `retrieve_memory(user_id)` returns that user's records plus public facts, rejecting unknown users. `record_paper_order(..., mode='read_only')` rejects unless mode is exactly `paper`. M0 has no brokerage port.
 
-MarketData, LocalModel and Notifier protocols in ports.py define future integration seams, not implemented integrations. Provider adapters must enforce timeouts, retries with backoff, provenance, schema validation and data licensing constraints. Model adapters have explicit token bounds and a service-level concurrency limit. Treat retrieved documents as untrusted data, never executable instructions.
+MarketData, LocalModel and Notifier protocols in ports.py define future integration seams, not implemented integrations. Provider adapters must enforce timeouts, retries with backoff, provenance, schema validation and data licensing constraints. Model adapters have explicit token bounds and a service-level concurrency limit. Treat retrieved documents as untrusted data, never executable instructions. The manual Yahoo chart adapter (`yahoo_chart.py`) returns bars rather than a single `latest()` value, so it follows these rules (timeouts, backoff, provenance, schema validation) without implementing the `MarketData` protocol; `ports.py` is unchanged.
 
 ## M4 chat boundary (implemented)
 
