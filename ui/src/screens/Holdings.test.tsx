@@ -45,6 +45,24 @@ describe('Holdings', () => {
     expect(calls[0]?.[2]).toBe('1');
   });
 
+  it('reuses the idempotency key when the same import is retried after a failure', async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    const api = fakeApi({
+      importHolding: () => (attempt++ === 0 ? Promise.reject(new ApiError(0, 'network')) : Promise.resolve()),
+    });
+    renderScreen(<Holdings portfolioId="p-1" />, api);
+    await screen.findByRole('table', { name: /holdings/i });
+    await user.type(screen.getByLabelText(/symbol/i), 'AAA');
+    await user.type(screen.getByLabelText(/quantity/i), '1');
+    await user.click(screen.getByRole('button', { name: /import holding/i }));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button', { name: /import holding/i }));
+    const calls = (api.importHolding as unknown as { mock: { calls: string[][] } }).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.[3]).toBe(calls[0]?.[3]);
+  });
+
   it('blocks a non-decimal quantity before calling the API', async () => {
     const user = userEvent.setup();
     const api = fakeApi();

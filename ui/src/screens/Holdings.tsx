@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import type { Holding, Receipt } from '../api/types';
 import { Page, Problem } from '../components/Page';
@@ -17,6 +17,13 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
   const [symbol, setSymbol] = useState('');
   const [quantity, setQuantity] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  // A key is kept until its action succeeds, so retrying the same action after a lost response
+  // reuses it and the server can dedupe. A different action (other symbol/quantity) gets a new key.
+  const pending = useRef<{ action: string; key: string } | null>(null);
+  function keyFor(action: string): string {
+    if (pending.current?.action !== action) pending.current = { action, key: crypto.randomUUID() };
+    return pending.current.key;
+  }
 
   const load = useCallback(async () => {
     try {
@@ -40,9 +47,8 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
       return;
     }
     try {
-      // One new key per user action: a double-click retry of the same action would reuse nothing,
-      // and a genuinely repeated import is a separate, receipted action.
-      await api.importHolding(portfolioId, symbol.trim(), quantity, crypto.randomUUID());
+      await api.importHolding(portfolioId, symbol.trim(), quantity, keyFor(`import:${symbol.trim()}:${quantity}`));
+      pending.current = null;
       setSymbol('');
       setQuantity('');
       announce('Holding imported');
@@ -56,7 +62,8 @@ export function Holdings({ portfolioId }: { portfolioId: string }) {
   async function remove(holding: Holding) {
     setProblem(null);
     try {
-      await api.removeHolding(portfolioId, holding.security_id, crypto.randomUUID());
+      await api.removeHolding(portfolioId, holding.security_id, keyFor(`remove:${holding.security_id}`));
+      pending.current = null;
       announce(`${holding.symbol ?? holding.security_id} removed`);
       await load();
     } catch (error) {
