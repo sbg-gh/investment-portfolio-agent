@@ -1,5 +1,5 @@
 """Operator CLI and server assembly: serve, create-user, issue-credential, revoke-credential,
-seed-starter-data, import-prices.
+seed-starter-data, import-prices, fetch-prices.
 
 Trusted local administration. Tokens are printed once at issuance and never logged; the database
 stores only their hash. uvicorn is imported lazily and only by `serve`, so provisioning and the
@@ -101,6 +101,10 @@ def parse_args(argv=None):
     prices.add_argument('--csv', required=True, help='path to the CSV file (UTF-8, up to 1 MiB)')
     prices.add_argument('--source', required=True, help='observation source name for the whole file')
     prices.add_argument('--dry-run', action='store_true', help='validate and report, write nothing')
+    fetch = commands.add_parser('fetch-prices', help='fetch end-of-day closes for the registered stocks and '
+                                'ETFs from Yahoo Finance (unofficial; manual; trusted local administration)')
+    fetch.add_argument('--db', required=True)
+    fetch.add_argument('--dry-run', action='store_true', help='fetch and validate, write nothing')
     return parser.parse_args(argv)
 
 
@@ -254,9 +258,33 @@ def _import_prices(args, env):
     return 0 if accepted == result['total_rows'] else 3
 
 
+def _fetch_prices(args, env):
+    """Exit 0: every symbol accepted. 3: some symbol failed or was skipped. 1: configuration error.
+
+    Unofficial source; automated retrieval is outside Yahoo's terms and was accepted by the operator
+    (docs/DECISIONS.md). Only ticker symbols and the fixed range leave the machine."""
+    from datetime import datetime, timezone
+    from .. import price_fetch, price_import
+    hooks = dict(price_fetch.HOOKS)
+    clock = hooks.get('clock') or (lambda: datetime.now(timezone.utc))
+    store = Store(args.db)
+    try:
+        targets = price_fetch.read_targets(store)
+        if not targets:
+            print('error: no_instruments', file=sys.stderr)
+            return 1
+        result = price_fetch.run_press(
+            targets, lambda rows, dry: price_import.import_rows(
+                store, rows, price_fetch.SOURCE, dry_run=dry, now=clock()),
+            dry_run=args.dry_run, **hooks)
+    finally:
+        store.close()
+    print(json.dumps(result))
+    accepted = sum(result['counts'].get(code, 0) for code in price_fetch.ACCEPTED)
+    return 0 if accepted == len(result['symbols']) else 3
 COMMANDS = {'serve': _serve, 'create-user': _create_user, 'issue-credential': _issue,
             'revoke-credential': _revoke, 'seed-starter-data': _seed_starter,
-            'import-prices': _import_prices}
+            'import-prices': _import_prices, 'fetch-prices': _fetch_prices}
 
 
 def main(argv=None, env=None):
