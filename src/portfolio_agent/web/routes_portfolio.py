@@ -4,12 +4,14 @@ Identity comes only from the server-side session (request.context). Path ids are
 strings checked by the service layer; a foreign id is indistinguishable from a missing one.
 Money and quantities are decimal strings.
 """
+from datetime import timedelta
 from uuid import uuid4
 
 from . import routes_common as rc
 from .app import Route
 from .wire import WireError
 from ..starter_data import StarterDataMissing
+from ..valuation import FreshnessPolicy
 
 SOURCE_LABEL = 'web-ui'
 MAX_IDS = 500
@@ -76,11 +78,17 @@ def list_receipts(request):
 
 def valuation(request):
     pid = request.params['id']
-    params = rc.query(request, {'source', 'as_of'})
+    params = rc.query(request, {'source', 'as_of', 'max_age_days'})
     source = rc.text(params.get('source'), max_len=64)
     as_of = rc.timestamp(params['as_of']) if 'as_of' in params else rc.now()
+    policy = None  # absent: the unchanged default (price 24 h, NAV 72 h)
+    if 'max_age_days' in params:
+        days = rc.window_days(params['max_age_days'])
+        # The NAV window is never tightened below its 3-day default. Built per request only.
+        policy = FreshnessPolicy(price_max_age=timedelta(days=days),
+                                 nav_max_age=timedelta(days=max(days, 3)))
     report = request.run(lambda b: b.service.value_portfolio(
-        request.context, pid, as_of=as_of, source=source))
+        request.context, pid, as_of=as_of, source=source, policy=policy))
     # Window lengths are whole seconds on the wire (no floats anywhere).
     report['policy'] = {name: int(value) for name, value in report['policy'].items()}
     return 200, report

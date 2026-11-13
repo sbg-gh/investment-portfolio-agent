@@ -7,6 +7,8 @@ from .wire import WireError, decimal_string
 
 _KEY = re.compile(r'[A-Za-z0-9_-]{8,128}', re.ASCII)
 _SYMBOL = re.compile(r'[A-Za-z0-9][A-Za-z0-9.-]{0,14}', re.ASCII)
+_WINDOW = re.compile(r'[0-9]{1,2}', re.ASCII)
+MAX_WINDOW_DAYS = 30
 
 
 def text(value, *, max_len=128):
@@ -25,6 +27,13 @@ def idempotency_key(value):
     if not isinstance(value, str) or not _KEY.fullmatch(value):
         raise WireError('invalid_field')
     return value
+
+
+def window_days(value):
+    """Valuation freshness window in whole days: 1..30, digits only."""
+    if not isinstance(value, str) or not _WINDOW.fullmatch(value) or not 1 <= int(value) <= MAX_WINDOW_DAYS:
+        raise WireError('invalid_field')
+    return int(value)
 
 
 def decimal(value, field):
