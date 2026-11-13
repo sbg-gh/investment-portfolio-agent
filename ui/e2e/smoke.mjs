@@ -7,6 +7,7 @@
 // (default python3.11), and Google Chrome installed.
 import { spawn } from 'node:child_process';
 import { strict as assert } from 'node:assert';
+import { Buffer } from 'node:buffer';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
