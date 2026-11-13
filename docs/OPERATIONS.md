@@ -4,7 +4,11 @@ M1 supplies authenticated local service contexts; Store remains a trusted-proces
 
 ## Deployment progression
 
-M0: offline in-memory demo or explicitly chosen local database. M1: authenticated local application services with scoped context and negative authorization tests; loopback transport is deferred. M3: one service supervising bounded job workers and an outbox. M4: optional local inference adapter with bounded resources. Bind loopback by default; external access requires an explicit transport/authentication design.
+M0: offline in-memory demo or explicitly chosen local database. M1: authenticated local application services with scoped context and negative authorization tests; loopback transport arrives with the optional web UI (slice 7a, docs/UI.md). M3: one service supervising bounded job workers and an outbox. M4: optional local inference adapter with bounded resources. Bind loopback by default; external access requires an explicit transport/authentication design.
+
+## Web UI server
+
+`python -m portfolio_agent.web serve --db PATH` (ui extra required) binds `127.0.0.1:8765`. Non-loopback binds are refused unless `--allow-non-loopback`, `PORTFOLIO_AGENT_ALLOW_REMOTE=I-UNDERSTAND-THERE-IS-NO-TLS` and `--allowed-host` are all given; there is no TLS. Provision with `create-user` / `issue-credential` (token printed once, only its hash stored) and `revoke-credential`. Sessions live in memory, so a restart signs everyone out. All service calls run on one worker thread that owns the SQLite connection; a chat turn holds the transaction while the model runs, so a slow model blocks other requests until `--model-timeout`. The request log line has method, route template, status, duration and request id only. Build the frontend with `npm --prefix ui ci && npm --prefix ui run build`; without it the server serves a "UI not built" page.
 
 Keep databases, models, logs, backups and credentials out of Git. Store future secrets in OS-protected configuration. Minimize logs to IDs, durations and error categories; private text requires explicit diagnostic consent and retention. Avoid embedding portfolio data into filenames or shared cache keys. Future private caches use owner scope in keys.
 

@@ -24,6 +24,18 @@ portfolio-agent eval-valuation
 
 The commands use synthetic data and fresh in-memory databases. No API keys, market-data subscriptions, model downloads or brokerage access are required. The eval command exits nonzero on any failed case. `.env.example` is a future adapter contract, not active configuration.
 
+## Local web UI (optional)
+
+```sh
+pip install -e '.[ui]'                                   # uvicorn, h11, click (exact pins; hashed lock in requirements/ui.lock)
+npm --prefix ui ci && npm --prefix ui run build          # Node 18.20.2+
+python -m portfolio_agent.web create-user alice --db var/portfolio.db
+python -m portfolio_agent.web issue-credential alice --db var/portfolio.db --role operator
+python -m portfolio_agent.web serve --db var/portfolio.db   # open http://127.0.0.1:8765 and paste the token
+```
+
+Loopback only, no TLS, operator-entered prices, slice 7a screens. See [docs/UI.md](docs/UI.md) for the threat model, limits and the recorded smoke tests. The four gates above need none of this.
+
 ## Implemented
 
 - Versioned SQLite schema, scoped portfolio imports, positive decimal quantities, validated instrument registration and a 75-slot global monitoring cap; research target 400 remains soft.
@@ -43,9 +55,9 @@ The commands use synthetic data and fresh in-memory databases. No API keys, mark
 
 ## Boundaries
 
-M1 implements local identity, persistence and service boundaries. It does not include an HTTP listener, interactive login, UI, prompt/cache authorization adapters or production deployment. Store, credential provisioning and backup functions are trusted operator internals. They are not endpoints. Python code and anyone with database/process access remain trusted; this is not an in-process security sandbox.
+M1 implements local identity, persistence and service boundaries. The optional slice-7a web UI adds a loopback HTTP listener with token login and in-memory sessions (docs/UI.md); there are still no prompt/cache authorization adapters or production deployment. Store, credential provisioning and backup functions are trusted operator internals. They are not endpoints. Python code and anyone with database/process access remain trusted; this is not an in-process security sandbox.
 
-Real market-data providers are not implemented. Valuation, proactive jobs, local inference, conversational orchestration, learned-procedure promotion and the paper ledger exist as local, offline building blocks over fixtures; corporate actions, tax-lot reporting, a user-facing CLI/UI and a real market-data adapter remain outside the delivered plan. The evaluation baseline measures deterministic safety, not investment performance or behavioral improvement.
+Real market-data providers are not implemented. Valuation, proactive jobs, local inference, conversational orchestration, learned-procedure promotion and the paper ledger exist as local, offline building blocks over fixtures; corporate actions, tax-lot reporting, slice 7b of the UI and a real market-data adapter remain outside the delivered plan. The evaluation baseline measures deterministic safety, not investment performance or behavioral improvement.
 
 ## Documentation
 
@@ -57,6 +69,7 @@ Real market-data providers are not implemented. Valuation, proactive jobs, local
 - [M5a memory substrate](docs/M5a.md)
 - [M5b experience learning and held-out evaluation](docs/M5b.md)
 - [M6 paper portfolio simulation](docs/M6.md)
+- [Local web UI](docs/UI.md)
 - [Domain](docs/specs/DOMAIN.md), [services](docs/specs/SERVICES.md), [memory](docs/specs/MEMORY.md)
 - [Read-only valuation and example](docs/VALUATION.md)
 - [Testing and evaluation](docs/TESTING.md)
